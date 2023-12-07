@@ -66,7 +66,7 @@ try:
 
     params["install_requires"] = [
         "actionable-recourse==0.1.1",
-        "pandas",
+        "pandas<2.1.0",
         "numpy",
         "jupyterlab",
         "sortedcontainers",
@@ -76,7 +76,7 @@ try:
         "mip",
         "graphviz",
         "shap",
-        "scikit-learn",
+        "scikit-learn<1.3",
     ]
 except:
     from distutils.core import setup
