@@ -181,7 +181,7 @@ class MAPOCAM:
                 ]
                 if self.clf.predict_proba(max_sol) < self.clf.threshold - self.eps:
                     continue
-
+            
             if hasattr(self.clf, "predict_max") and self.clf.use_predict_max:
                 max_prob = self.clf.predict_max(new_solution, self.sequence[:new_size])
                 if max_prob < self.clf.threshold:

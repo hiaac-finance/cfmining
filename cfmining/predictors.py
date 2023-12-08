@@ -144,7 +144,7 @@ class GeneralClassifier_Shap:
         self.shap_values = self.explainer(X)
         self.feature_names = X.columns.tolist()
         self.importances = np.abs(self.shap_values.values).mean(0)
-        self.importances_max = np.abs(self.shap_values.values).max(0)
+        self.importances_max = self.shap_values.values.max(0)
         self.n_features = self.importances.shape[0]
         self.use_predict_max = use_predict_max
 
