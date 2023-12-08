@@ -5,6 +5,7 @@
 @license: BSD 3-clause.
 """
 import numpy as np
+import pandas as pd
 import sklearn
 import shap
 
@@ -128,14 +129,24 @@ class GeneralClassifier_Shap:
         User defined threshold for the classification.
     """
 
-    def __init__(self, classifier, X=None, y=None, metric=None, threshold=0.5):
+    def __init__(
+        self,
+        classifier,
+        X=None,
+        y=None,
+        metric=None,
+        use_predict_max=True,
+        threshold=0.5,
+    ):
         self.clf = classifier
         self.threshold = threshold
         self.explainer = shap.Explainer(self.clf.predict, X)
         self.shap_values = self.explainer(X)
+        self.feature_names = X.columns.tolist()
         self.importances = np.abs(self.shap_values.values).mean(0)
         self.importances_max = np.abs(self.shap_values.values).max(0)
         self.n_features = self.importances.shape[0]
+        self.use_predict_max = use_predict_max
 
     @property
     def feat_importance(self):
@@ -158,6 +169,8 @@ class GeneralClassifier_Shap:
 
     def predict_max(self, value, fixed_vars):
         """Calculates probability of achieving desired classification."""
+        if type(value) is list or type(value) is np.ndarray:
+            value = pd.DataFrame([value], columns=self.feature_names)
         open_vars = list(set(range(self.n_features)).difference(fixed_vars))
         shap_individual = self.explainer(value)[0].values
         return (
