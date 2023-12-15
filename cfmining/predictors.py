@@ -123,8 +123,8 @@ class GeneralClassifier_Shap:
         Input Samples
     y : numpy array,
         Output Samples.
-    metric : function,
-        User specific metric function to estimate importance.
+    outlier_detection : sklearn type classifer, optional
+        Classifier to detect outliers.
     threshold : float,
         User defined threshold for the classification.
     """
@@ -134,7 +134,7 @@ class GeneralClassifier_Shap:
         classifier,
         X=None,
         y=None,
-        metric=None,
+        outlier_detection=None,
         use_predict_max=True,
         threshold=0.5,
     ):
@@ -144,7 +144,12 @@ class GeneralClassifier_Shap:
         self.shap_values = self.explainer(X)
         self.feature_names = X.columns.tolist()
         self.importances = np.abs(self.shap_values.values).mean(0)
-        self.importances_max = self.shap_values.values.max(0)
+        if outlier_detection is None:
+            self.shap_max = self.shap_values.values.max(0)
+        else:
+            outliers = outlier_detection.predict(X) == 1
+            shap_values = self.shap_values.values[outliers]
+            self.shap_max = shap_values.max(0)
         self.n_features = self.importances.shape[0]
         self.use_predict_max = use_predict_max
 
@@ -176,7 +181,7 @@ class GeneralClassifier_Shap:
         return (
             self.clf.predict_proba(value)[:, 1]
             - shap_individual[open_vars].sum()
-            + self.importances_max[open_vars].sum()
+            + self.shap_max[open_vars].sum()
         )
 
 
