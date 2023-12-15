@@ -649,14 +649,15 @@ class MAPOCAM2:
             feat_name: action_grid[feat_name][::flip_dir]
             for feat_name, flip_dir in zip(self.names, self.feat_direction)
         }
-        self.max_action = np.array(
-            [
-                max(self.feas_grid[feat_name])
-                if flip_dir == 1
-                else min(self.feas_grid[feat_name])
-                for feat_name, flip_dir in zip(self.names, self.feat_direction)
-            ]
-        )
+        if not (hasattr(self.clf, "predict_max") and self.clf.use_predict_max):
+            self.max_action = np.array(
+                [
+                    max(self.feas_grid[feat_name])
+                    if flip_dir == 1
+                    else min(self.feas_grid[feat_name])
+                    for feat_name, flip_dir in zip(self.names, self.feat_direction)
+                ]
+            )
 
         # delta_action = np.array([max(self.feas_grid[feat_name]) - min(self.feas_grid[feat_name])
         #                            for feat_name, flip_dir in zip(self.names, self.feat_direction)])
@@ -744,13 +745,15 @@ class MAPOCAM2:
                 max_sol[self.sequence[:new_size]] = new_solution[
                     self.sequence[:new_size]
                 ]
-                if self.clf.predict_proba(max_sol) < self.clf.threshold - self.eps:
-                    continue
-
-            if hasattr(self.clf, "predict_max") and self.clf.use_predict_max:
+                max_prob = self.clf.predict_proba(max_sol)
+            elif hasattr(self.clf, "predict_max") and self.clf.use_predict_max:
                 max_prob = self.clf.predict_max(new_solution, self.sequence[:new_size])
-                if max_prob < self.clf.threshold:
-                    continue
+            else:
+                max_prob = 1000
+            
+            print(f"max prob: {max_prob}")
+            if max_prob < self.clf.threshold - self.eps:
+                continue
 
             if self.recursive:
                 self.find_candidates(new_solution, new_size, new_changes)
