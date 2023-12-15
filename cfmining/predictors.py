@@ -140,7 +140,8 @@ class GeneralClassifier_Shap:
     ):
         self.clf = classifier
         self.threshold = threshold
-        self.explainer = shap.Explainer(self.clf.predict, X)
+        self.explainer = shap.Explainer(lambda x: self.clf.predict_proba(x)[:, 1], X)
+        self.mean_prob = self.clf.predict_proba(X)[:, 1].mean()
         self.shap_values = self.explainer(X)
         self.feature_names = X.columns.tolist()
         self.importances = np.abs(self.shap_values.values).mean(0)
