@@ -181,7 +181,7 @@ class MAPOCAM:
                 ]
                 if self.clf.predict_proba(max_sol) < self.clf.threshold - self.eps:
                     continue
-            
+
             if hasattr(self.clf, "predict_max") and self.clf.use_predict_max:
                 max_prob = self.clf.predict_max(new_solution, self.sequence[:new_size])
                 if max_prob < self.clf.threshold:
@@ -680,6 +680,9 @@ class MAPOCAM2:
                 if self.clf.predict_proba(solution) >= self.clf.threshold - self.eps:
                     self.update_solutions(solution)
 
+        self.prob_max_counter = 0
+        self.outlier_detection_counter = 0
+
     def update_solutions(self, solution):
         if not self.recursive:
             for key in self.calls:
@@ -714,32 +717,44 @@ class MAPOCAM2:
         next_idx = self.sequence[size]
         next_name = self.names[next_idx]
 
+        # Looking for a candidate following features
         for value in self.feas_grid[next_name]:
-            new_size = size + 1
-            new_changes = changes + (value != self.pivot[next_idx])
-
             new_solution = solution.copy()
             new_solution[next_idx] = value
 
+            # If new solution is worse than any previous, stop
             for old_sol in self.solutions:
                 if self.compare.greater_than(new_solution, old_sol):
                     return
 
-            new_proba = self.clf.predict_proba(new_solution)
             outlier = False
-            if self.outlier_detection is not None:
-                outlier = self.outlier_detection.predict(new_solution) == 1
+            # If is a solution, save it
+            new_proba = self.clf.predict_proba(new_solution)
+            if new_proba >= self.clf.threshold - self.eps:                
+                # Only save if it is not an outlier
+                if self.outlier_detection is not None:
+                    outlier = self.outlier_detection.predict(new_solution[None, :]) == 1
 
-            if (new_proba >= self.clf.threshold - self.eps) and not outlier:
-                self.update_solutions(new_solution)
+                if outlier:
+                    self.outlier_detection_counter += 1
+                else:
+                    self.update_solutions(new_solution)
+                
+                # If is a feasible solution or an outlier, return
                 return
-
+            
+            new_size = size + 1
             if new_size >= self.pivot.size:
                 continue
-
+            
+            # If made more changes than the limit
+            new_changes = changes + (value != self.pivot[next_idx])
             if new_changes >= self.max_changes:
                 continue
 
+        
+            # Calculate max probability of solution
+            max_prob = 1
             if self.clf.monotone:
                 max_sol = self.max_action.copy()
                 max_sol[self.sequence[:new_size]] = new_solution[
@@ -748,11 +763,10 @@ class MAPOCAM2:
                 max_prob = self.clf.predict_proba(max_sol)
             elif hasattr(self.clf, "predict_max") and self.clf.use_predict_max:
                 max_prob = self.clf.predict_max(new_solution, self.sequence[:new_size])
-            else:
-                max_prob = 1000
-            
-            print(f"max prob: {max_prob}")
+                
+            # If max probability will be lower than the threshold, continue
             if max_prob < self.clf.threshold - self.eps:
+                self.prob_max_counter += 1
                 continue
 
             if self.recursive:
