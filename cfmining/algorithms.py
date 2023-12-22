@@ -733,7 +733,7 @@ class MAPOCAM2:
             if new_proba >= self.clf.threshold - self.eps:                
                 # Only save if it is not an outlier
                 if self.outlier_detection is not None:
-                    outlier = self.outlier_detection.predict(new_solution[None, :]) == 1
+                    outlier = self.outlier_detection.predict(new_solution[None, :]) == -1
 
                 if outlier:
                     self.outlier_detection_counter += 1
