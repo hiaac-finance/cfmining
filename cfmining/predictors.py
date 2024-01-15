@@ -136,23 +136,44 @@ class GeneralClassifier_Shap:
         y=None,
         outlier_detection=None,
         use_predict_max=True,
+        method_predict_max="shap",
         threshold=0.5,
     ):
         self.clf = classifier
         self.threshold = threshold
-        self.explainer = shap.Explainer(lambda x: self.clf.predict_proba(x)[:, 1], X)
-        self.mean_prob = self.clf.predict_proba(X)[:, 1].mean()
-        self.shap_values = self.explainer(X)
         self.feature_names = X.columns.tolist()
-        self.importances = np.abs(self.shap_values.values).mean(0)
-        if outlier_detection is None:
-            self.shap_max = self.shap_values.values.max(0)
-        else:
-            outliers = outlier_detection.predict(X) == 1
-            shap_values = self.shap_values.values[outliers]
-            self.shap_max = shap_values.max(0)
-        self.n_features = self.importances.shape[0]
+        self.n_features = X.shape[1]
         self.use_predict_max = use_predict_max
+        self.method_predict_max = method_predict_max
+
+        self.explainer = shap.KernelExplainer(
+            lambda x: self.clf.predict_proba(x)[:, 1], X.sample(100)
+        )
+
+
+        self.shap_values = self.explainer(X)
+        self.importances = np.abs(self.shap_values.values).mean(0)
+        if method_predict_max == "shap":
+            self.shap_max = self.shap_values.values.max(0)
+        elif method_predict_max == "monotone":
+            min_values = X.values.min(0)
+            max_values = X.values.max(0)
+
+            sample = X.iloc[[0]].values
+            self.action_max = []
+            for i in range(self.n_features):
+                sample_min_value = sample.copy()
+                sample_min_value[0, i] = min_values[i]
+                prob_min_value = self.clf.predict_proba(sample_min_value)[0, 1]
+                sample_max_value = sample.copy()
+                sample_max_value[0, i] = max_values[i]
+                prob_max_value = self.clf.predict_proba(sample_max_value)[0, 1]
+
+                if prob_min_value > prob_max_value:
+                    self.action_max.append(min_values[i])
+                else:
+                    self.action_max.append(max_values[i])
+
 
     @property
     def feat_importance(self):
@@ -178,12 +199,17 @@ class GeneralClassifier_Shap:
         if type(value) is list or type(value) is np.ndarray:
             value = pd.DataFrame([value], columns=self.feature_names)
         open_vars = list(set(range(self.n_features)).difference(fixed_vars))
-        shap_individual = self.explainer(value)[0].values
-        return (
-            self.clf.predict_proba(value)[:, 1]
-            - shap_individual[open_vars].sum()
-            + self.shap_max[open_vars].sum()
-        )
+        prob = self.clf.predict_proba(value)[:, 1]
+        if self.method_predict_max == "shap":
+            shap_individual = self.explainer(value)[0].values
+            return (
+                prob - shap_individual[open_vars].sum() + self.shap_max[open_vars].sum()
+            )
+        elif self.method_predict_max == "monotone":
+            value_copy = value.copy()
+            for i in open_vars:
+                value_copy.iloc[0, i] = self.action_max[i]
+            return self.clf.predict_proba(value_copy)[:, 1]
 
 
 class MonotoneClassifier(GeneralClassifier):
