@@ -659,6 +659,10 @@ class MAPOCAM2:
                 ]
             )
 
+        self.feas_grid_size = np.array(
+            [len(self.feas_grid[feat_name]) for feat_name in self.names]
+        )
+
         # delta_action = np.array([max(self.feas_grid[feat_name]) - min(self.feas_grid[feat_name])
         #                            for feat_name, flip_dir in zip(self.names, self.feat_direction)])
         # action_range = abs(self.max_action - self.pivot)/(delta_action+(delta_action==0))
@@ -762,7 +766,11 @@ class MAPOCAM2:
                 ]
                 max_prob = self.clf.predict_proba(max_sol)
             elif hasattr(self.clf, "predict_max") and self.clf.use_predict_max:
-                max_prob = self.clf.predict_max(new_solution, self.sequence[:new_size])
+                # get features with grid size equal to 1
+                fixed_vars = np.where(self.feas_grid_size == 1)[0]
+                # append features from the solution
+                fixed_vars = np.append(fixed_vars, self.sequence[:new_size])
+                max_prob = self.clf.predict_max(new_solution, fixed_vars)
                 
             # If max probability will be lower than the threshold, continue
             if max_prob < self.clf.threshold - self.eps:
