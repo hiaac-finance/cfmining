@@ -145,16 +145,24 @@ class GeneralClassifier_Shap:
         self.n_features = X.shape[1]
         self.use_predict_max = use_predict_max
         self.method_predict_max = method_predict_max
-
-        self.explainer = shap.KernelExplainer(
-            lambda x: self.clf.predict_proba(x)[:, 1], X.sample(100)
-        )
-
+        self.use_log_odds = True
+        def predict_proba(x):
+            x = pd.DataFrame(x, columns=self.feature_names)
+            p = self.clf.predict_proba(x)[:, 1]
+            if self.use_log_odds:
+                log_odds = np.log(p / (1 - p))
+                return log_odds
+            return p
+    
+        X100 = X.sample(100)
+        self.explainer = shap.Explainer(predict_proba, X100)
 
         self.shap_values = self.explainer(X)
         self.importances = np.abs(self.shap_values.values).mean(0)
         if method_predict_max == "shap":
             self.shap_max = self.shap_values.values.max(0)
+            if self.use_log_odds:
+                self.shap_max = np.exp(self.shap_max) / (1 + np.exp(self.shap_max))
         elif method_predict_max == "monotone":
             min_values = X.values.min(0)
             max_values = X.values.max(0)
@@ -173,7 +181,6 @@ class GeneralClassifier_Shap:
                     self.action_max.append(min_values[i])
                 else:
                     self.action_max.append(max_values[i])
-
 
     @property
     def feat_importance(self):
@@ -202,6 +209,8 @@ class GeneralClassifier_Shap:
         prob = self.clf.predict_proba(value)[:, 1]
         if self.method_predict_max == "shap":
             shap_individual = self.explainer(value)[0].values
+            if self.use_log_odds:
+                shap_individual = np.exp(shap_individual) / (1 + np.exp(shap_individual))
             return (
                 prob - shap_individual[open_vars].sum() + self.shap_max[open_vars].sum()
             )
