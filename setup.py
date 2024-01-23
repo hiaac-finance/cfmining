@@ -77,6 +77,7 @@ try:
         "graphviz",
         "shap",
         "scikit-learn<1.3",
+        "isotree",
     ]
 except:
     from distutils.core import setup
