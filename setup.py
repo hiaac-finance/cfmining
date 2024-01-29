@@ -65,7 +65,7 @@ try:
     from setuptools import setup
 
     params["install_requires"] = [
-        "actionable-recourse==0.1.1",
+        #"actionable-recourse==0.1.1",
         "pandas<2.1.0",
         "numpy",
         "jupyterlab",

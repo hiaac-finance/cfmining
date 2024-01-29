@@ -18,15 +18,15 @@ import re
 import pandas as pd
 from itertools import chain
 from collections import defaultdict
-from recourse.defaults import *
-from recourse.defaults import _SOLVER_TYPE_CBC, _SOLVER_TYPE_CPX
-from recourse.helper_functions import parse_classifier_args
 
-#from recourse.builder import RecourseBuilder
+
+from cfmining.defaults import *
 from cfmining.action_set import ActionSet
+from cfmining.action_set_helper import parse_classifier_args
 
 try:
-    from recourse.cplex_helper import Cplex, SparsePair, set_cpx_parameters, set_cpx_display_options, set_cpx_time_limit, set_cpx_node_limit, toggle_cpx_preprocessing, DEFAULT_CPLEX_PARAMETERS
+    #from recourse.cplex_helper import Cplex, SparsePair, set_cpx_parameters, set_cpx_display_options, set_cpx_time_limit, set_cpx_node_limit, DEFAULT_CPLEX_PARAMETERS
+    from cfmining.cplex_helper import Cplex, SparsePair, set_cpx_parameters, set_cpx_display_options, set_cpx_time_limit, set_cpx_node_limit, DEFAULT_CPLEX_PARAMETERS
 except ImportError:
     pass
 
@@ -39,7 +39,6 @@ except ImportError:
     pass
 
 __all__ = ['RecourseBuilder']
-#from recourse.builder import _RecourseBuilderPyomo
 
 class RecourseBuilder(object):
     _valid_enumeration_types = VALID_ENUMERATION_TYPES.union(['remove_dominated', 'remove_number_actions'])
