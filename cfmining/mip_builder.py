@@ -21,6 +21,7 @@ from collections import defaultdict
 
 
 from cfmining.defaults import *
+from cfmining.defaults import _SOLVER_TYPE_CBC, _SOLVER_TYPE_CPX
 from cfmining.action_set import ActionSet
 from cfmining.action_set_helper import parse_classifier_args
 

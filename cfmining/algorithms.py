@@ -621,6 +621,7 @@ class MAPOCAM2:
         pivot,
         classifier,
         outlier_detection=None,
+        estimate_outlier=False,
         max_changes=3,
         compare=None,
         clean_suboptimal=True,
@@ -632,6 +633,7 @@ class MAPOCAM2:
         self.max_changes = max_changes
         self.clf = classifier
         self.outlier_detection = outlier_detection
+        self.estimate_outlier = estimate_outlier
         self.action_set = action_set
         self.recursive = recursive
 
@@ -776,6 +778,19 @@ class MAPOCAM2:
             if max_prob < self.clf.threshold - self.eps:
                 self.prob_max_counter += 1
                 continue
+
+            # If the solution is already an outlier, skip it
+            if self.outlier_detection is not None:
+                if self.estimate_outlier:
+                    fixed_vars = np.append( np.where(self.feas_grid_size == 1)[0], self.sequence[:new_size])
+                    open_vars = np.setdiff1d(np.arange(self.d), fixed_vars)
+                    new_solution_with_nan = new_solution.copy().astype(float)
+                    new_solution_with_nan[open_vars] = np.nan
+                    outlier = self.outlier_detection.predict(new_solution_with_nan[None, :]) > 0.6
+                    if outlier:
+                        self.outlier_detection_counter += 1
+                        continue
+
 
             if self.recursive:
                 self.find_candidates(new_solution, new_size, new_changes)
