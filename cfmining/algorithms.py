@@ -89,9 +89,11 @@ class MAPOCAM:
         }
         self.max_action = np.array(
             [
-                max(self.feas_grid[feat_name])
-                if flip_dir == 1
-                else min(self.feas_grid[feat_name])
+                (
+                    max(self.feas_grid[feat_name])
+                    if flip_dir == 1
+                    else min(self.feas_grid[feat_name])
+                )
                 for feat_name, flip_dir in zip(self.names, self.feat_direction)
             ]
         )
@@ -640,24 +642,20 @@ class MAPOCAM2:
         assert type(pivot) is np.ndarray, "pivot should be a numpy array"
         self.pivot = pivot
 
-        self.feat_direction = np.array(
-            [action_set[feat_name].flip_direction for feat_name in self.names]
-        )
-
         action_grid = action_set.feasible_grid(
             pivot, return_percentiles=False, return_actions=False, return_immutable=True
         )
-        self.feas_grid = {
-            feat_name: action_grid[feat_name][::flip_dir]
-            for feat_name, flip_dir in zip(self.names, self.feat_direction)
-        }
+        self.feas_grid = {feat_name: action_grid[feat_name] for feat_name in self.names}
+
         if not (hasattr(self.clf, "predict_max") and self.clf.use_predict_max):
             self.max_action = np.array(
                 [
-                    max(self.feas_grid[feat_name])
-                    if flip_dir == 1
-                    else min(self.feas_grid[feat_name])
-                    for feat_name, flip_dir in zip(self.names, self.feat_direction)
+                    (
+                        max(self.feas_grid[feat_name])
+                        if action_set[feat_name].flip_direction == 1
+                        else min(self.feas_grid[feat_name])
+                    )
+                    for feat_name in self.names
                 ]
             )
 
@@ -665,11 +663,7 @@ class MAPOCAM2:
             [len(self.feas_grid[feat_name]) for feat_name in self.names]
         )
 
-        # delta_action = np.array([max(self.feas_grid[feat_name]) - min(self.feas_grid[feat_name])
-        #                            for feat_name, flip_dir in zip(self.names, self.feat_direction)])
-        # action_range = abs(self.max_action - self.pivot)/(delta_action+(delta_action==0))
         self.sequence = np.argsort(classifier.feat_importance)[::-1]
-        # self.sequence = np.argsort(classifier.feat_importance*action_range)[::-1]
 
         if compare is None:
             self.compare = NonDomCriterion(self.feat_direction)
@@ -736,29 +730,30 @@ class MAPOCAM2:
             outlier = False
             # If is a solution, save it
             new_proba = self.clf.predict_proba(new_solution)
-            if new_proba >= self.clf.threshold - self.eps:                
+            if new_proba >= self.clf.threshold - self.eps:
                 # Only save if it is not an outlier
                 if self.outlier_detection is not None:
-                    outlier = self.outlier_detection.predict(new_solution[None, :]) > 0.6
+                    outlier = (
+                        self.outlier_detection.predict(new_solution[None, :]) > 0.6
+                    )
 
                 if outlier:
                     self.outlier_detection_counter += 1
                 else:
                     self.update_solutions(new_solution)
-                
+
                 # If is a feasible solution or an outlier, return
                 return
-            
+
             new_size = size + 1
             if new_size >= self.pivot.size:
                 continue
-            
+
             # If made more changes than the limit
             new_changes = changes + (value != self.pivot[next_idx])
             if new_changes >= self.max_changes:
                 continue
 
-        
             # Calculate max probability of solution
             max_prob = 1
             if self.clf.monotone:
@@ -773,24 +768,28 @@ class MAPOCAM2:
                 # append features from the solution
                 fixed_vars = np.append(fixed_vars, self.sequence[:new_size])
                 max_prob = self.clf.predict_max(new_solution, fixed_vars)
-                
+
             # If max probability will be lower than the threshold, continue
             if max_prob < self.clf.threshold - self.eps:
                 self.prob_max_counter += 1
                 continue
 
-            # If the solution is already an outlier, skip it
+            # If the partial solution is already an outlier, skip it
             if self.outlier_detection is not None:
                 if self.estimate_outlier:
-                    fixed_vars = np.append( np.where(self.feas_grid_size == 1)[0], self.sequence[:new_size])
+                    fixed_vars = np.append(
+                        np.where(self.feas_grid_size == 1)[0], self.sequence[:new_size]
+                    )
                     open_vars = np.setdiff1d(np.arange(self.d), fixed_vars)
                     new_solution_with_nan = new_solution.copy().astype(float)
                     new_solution_with_nan[open_vars] = np.nan
-                    outlier = self.outlier_detection.predict(new_solution_with_nan[None, :]) > 0.6
+                    outlier = (
+                        self.outlier_detection.predict(new_solution_with_nan[None, :])
+                        > 0.6
+                    )
                     if outlier:
                         self.outlier_detection_counter += 1
                         continue
-
 
             if self.recursive:
                 self.find_candidates(new_solution, new_size, new_changes)

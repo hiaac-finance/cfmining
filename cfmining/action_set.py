@@ -520,7 +520,7 @@ class _ActionElement(object):
         if self.mutable:
             
             if self.step_type == 'splits':
-                if self._step_direction > 0:
+                if self._step_direction >= 0:
                     x_new = self.grid+self.min_delta
                 elif self._step_direction < 0:
                     x_new = self.grid
