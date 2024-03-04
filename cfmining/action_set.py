@@ -546,6 +546,10 @@ class _ActionElement(object):
             if not x in x_new:  # include current point
                 x_new = np.insert(x_new, np.searchsorted(x_new, x), x)
 
+            # small fix to step_direction = 0
+            # sort the values based on the distance to x
+            if self._step_direction == 0:
+                x_new = x_new[np.argsort(np.abs(x_new - x))]
         else:
 
             x_new = np.array([x])

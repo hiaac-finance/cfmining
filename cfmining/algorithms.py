@@ -150,7 +150,9 @@ class MAPOCAM:
             self.solutions += [solution]
 
     def find_candidates(self, solution=None, size=0, changes=0):
+        print(size)
         next_idx = self.sequence[size]
+        print(next_idx)
         next_name = self.names[next_idx]
 
         for value in self.feas_grid[next_name]:
@@ -573,7 +575,7 @@ class BruteForce(MAPOCAM):
             self.recursive_fit(new_solution, size + 1, new_changes)
 
 
-class MAPOCAM2:
+class MAPOFCEM:
     """Class that finds a set of Pareto-optimal counterfactual antecedents
     using branch-and-bound based tree search.
 
@@ -597,21 +599,6 @@ class MAPOCAM2:
 
     solutions : set of numpy arrays.
         Set of Pareto-optimal counterfactual antecedent.
-
-    Notes
-    -----
-
-    See the original paper: [1]_.
-
-    References
-    ----------
-
-    .. [1] Raimundo, M.M.; Nonato, L.G.; Poco, J.
-    “Mining Pareto-Optimal Counterfactual Antecedents with a Branch-and-Bound Model-Agnostic Algorithm”.
-    Submitted to IEEE Transactions on Knowledge and Data Engineering.
-
-    Methods
-    -------
 
     """
 
@@ -647,7 +634,7 @@ class MAPOCAM2:
         )
         self.feas_grid = {feat_name: action_grid[feat_name] for feat_name in self.names}
 
-        if not (hasattr(self.clf, "predict_max") and self.clf.use_predict_max):
+        if not hasattr(self.clf, "predict_max"):
             self.max_action = np.array(
                 [
                     (
@@ -665,10 +652,8 @@ class MAPOCAM2:
 
         self.sequence = np.argsort(classifier.feat_importance)[::-1]
 
-        if compare is None:
-            self.compare = NonDomCriterion(self.feat_direction)
-        else:
-            self.compare = compare
+        assert compare is not None
+        self.compare = compare
 
         self.clean_suboptimal = clean_suboptimal
         self.solutions = []
@@ -734,7 +719,7 @@ class MAPOCAM2:
                 # Only save if it is not an outlier
                 if self.outlier_detection is not None:
                     outlier = (
-                        self.outlier_detection.predict(new_solution[None, :]) > 0.6
+                        self.outlier_detection.predict(new_solution[None, :]) == -1
                     )
 
                 if outlier:
@@ -762,7 +747,7 @@ class MAPOCAM2:
                     self.sequence[:new_size]
                 ]
                 max_prob = self.clf.predict_proba(max_sol)
-            elif hasattr(self.clf, "predict_max") and self.clf.use_predict_max:
+            elif hasattr(self.clf, "predict_max"):
                 # get features with grid size equal to 1
                 fixed_vars = np.where(self.feas_grid_size == 1)[0]
                 # append features from the solution
@@ -785,7 +770,7 @@ class MAPOCAM2:
                     new_solution_with_nan[open_vars] = np.nan
                     outlier = (
                         self.outlier_detection.predict(new_solution_with_nan[None, :])
-                        > 0.6
+                        == -1
                     )
                     if outlier:
                         self.outlier_detection_counter += 1
