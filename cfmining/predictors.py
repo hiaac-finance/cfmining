@@ -123,8 +123,6 @@ class GeneralClassifier_Shap:
         Input Samples
     y : numpy array,
         Output Samples.
-    outlier_detection : sklearn type classifer, optional
-        Classifier to detect outliers.
     threshold : float,
         User defined threshold for the classification.
     """
@@ -134,18 +132,17 @@ class GeneralClassifier_Shap:
         classifier,
         X=None,
         y=None,
-        outlier_detection=None,
-        use_predict_max=True,
         method_predict_max="shap",
+        tree = False,
         threshold=0.5,
     ):
         self.clf = classifier
         self.threshold = threshold
         self.feature_names = X.columns.tolist()
         self.n_features = X.shape[1]
-        self.use_predict_max = use_predict_max
         self.method_predict_max = method_predict_max
-        self.use_log_odds = True
+        self.tree = tree
+        self.use_log_odds = True if not tree else False
         def predict_proba(x):
             x = pd.DataFrame(x, columns=self.feature_names)
             p = self.clf.predict_proba(x)[:, 1]
@@ -155,7 +152,11 @@ class GeneralClassifier_Shap:
             return p
     
         X100 = X.sample(100)
-        self.explainer = shap.Explainer(predict_proba, X100)
+        if not tree:
+            self.explainer = shap.Explainer(predict_proba, X100)
+        else:
+            print("entrou aqui")
+            self.explainer = shap.TreeExplainer(self.clf, X100, model_output="probability", feature_perturbation="interventional")
 
         self.shap_values = self.explainer(X)
         self.importances = np.abs(self.shap_values.values).mean(0)
