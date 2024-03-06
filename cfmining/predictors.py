@@ -155,7 +155,6 @@ class GeneralClassifier_Shap:
         if not tree:
             self.explainer = shap.Explainer(predict_proba, X100)
         else:
-            print("entrou aqui")
             self.explainer = shap.TreeExplainer(self.clf, X100, model_output="probability", feature_perturbation="interventional")
 
         self.shap_values = self.explainer(X)
