@@ -612,27 +612,31 @@ class MAPOFCEM:
         outlier_detection=None,
         estimate_outlier=False,
         max_changes=3,
+        total_CFs=4,
+        categorical_features=None,
         compare=None,
-        clean_suboptimal=True,
-        warm_solutions=None,
-        recursive=False,
     ):
-        self.names = list(action_set.df["name"])
-        self.d = len(self.names)
-        self.max_changes = max_changes
+        self.action_set = action_set
+        assert type(pivot) is np.ndarray, "pivot should be a numpy array"
+        self.pivot = pivot
         self.clf = classifier
         self.outlier_detection = outlier_detection
         self.estimate_outlier = estimate_outlier
-        self.action_set = action_set
-        self.recursive = recursive
+        self.max_changes = max_changes
+        self.total_CFs = total_CFs
+        self.categorical_features = categorical_features
+        assert compare is not None
+        self.compare = compare
 
-        assert type(pivot) is np.ndarray, "pivot should be a numpy array"
-        self.pivot = pivot
-
+        self.names = list(action_set.df["name"])
+        self.d = len(self.names)
         action_grid = action_set.feasible_grid(
             pivot, return_percentiles=False, return_actions=False, return_immutable=True
         )
         self.feas_grid = {feat_name: action_grid[feat_name] for feat_name in self.names}
+        self.feas_grid_size = np.array(
+            [len(self.feas_grid[feat_name]) for feat_name in self.names]
+        )
 
         if not hasattr(self.clf, "predict_max"):
             self.max_action = np.array(
@@ -646,56 +650,36 @@ class MAPOFCEM:
                 ]
             )
 
-        self.feas_grid_size = np.array(
-            [len(self.feas_grid[feat_name]) for feat_name in self.names]
-        )
-
         self.sequence = np.argsort(classifier.feat_importance)[::-1]
-
-        assert compare is not None
-        self.compare = compare
-
-        self.clean_suboptimal = clean_suboptimal
         self.solutions = []
-        if warm_solutions is not None:
-            for old_sol in warm_solutions:
-                solution = self.feat_direction * np.maximum(
-                    self.feat_direction * old_sol, self.feat_direction * pivot
-                )
-                if self.clf.predict_proba(solution) >= self.clf.threshold - self.eps:
-                    self.update_solutions(solution)
-
         self.prob_max_counter = 0
         self.outlier_detection_counter = 0
 
     def update_solutions(self, solution):
-        if not self.recursive:
-            for key in self.calls:
-                if self.compare.greater_than(self.calls[key][0], solution):
-                    del self.calls[key]
+        # remove dominated calls
+        for key in self.calls:
+            if self.compare.greater_than(self.calls[key][0], solution):
+                del self.calls[key]
 
-        if self.clean_suboptimal:
-            solutions = []
-            new_optimal = True
-            self.keep_solutions = np.ones(len(self.solutions))
-            for idx, old_sol in enumerate(self.solutions):
-                old_better = self.compare.greater_than(solution, old_sol)
-                new_better = self.compare.greater_than(old_sol, solution)
-                if new_better and not old_better:
-                    self.keep_solutions[idx] = 0
-                if old_better:
-                    new_optimal = False
-                    # print('sda')
-                    break
-                # new_optimal = new_optimal and not old_better
-            self.solutions = [
-                old_sol
-                for idx, old_sol in enumerate(self.solutions)
-                if self.keep_solutions[idx] == 1
-            ]
-            if new_optimal:
-                self.solutions += [solution]
-        else:
+        # verify if the solution is dominated by any other solution
+        # or if it dominates any other solution
+        new_optimal = True
+        self.keep_solutions = np.ones(len(self.solutions))
+        for idx, old_sol in enumerate(self.solutions):
+            old_better = self.compare.greater_than(solution, old_sol)
+            new_better = self.compare.greater_than(old_sol, solution)
+            if new_better and not old_better:
+                self.keep_solutions[idx] = 0
+            if old_better:
+                new_optimal = False
+                break
+
+        self.solutions = [
+            old_sol
+            for idx, old_sol in enumerate(self.solutions)
+            if self.keep_solutions[idx] == 1
+        ]
+        if new_optimal:
             self.solutions += [solution]
 
     def find_candidates(self, solution=None, size=0, changes=0):
@@ -776,44 +760,26 @@ class MAPOFCEM:
                         self.outlier_detection_counter += 1
                         continue
 
-            if self.recursive:
-                self.find_candidates(new_solution, new_size, new_changes)
-            else:
-                self.idd += 1
-                # self.calls[(self.d-changes+new_proba, self.idd)] = (new_solution, new_size, new_changes)
-                self.calls[(new_proba, self.idd)] = [
-                    new_solution,
-                    new_size,
-                    new_changes,
-                ]
+            self.idd += 1
+            self.calls[(new_proba, self.idd)] = [
+                new_solution,
+                new_size,
+                new_changes,
+            ]
 
     def fit(self):
         """
         Find counterfactual antecedent given the data.
         """
-        if self.recursive:
-            self.find_candidates(self.pivot.copy(), 0, 0)
-        else:
-            self.idd = 0
-            self.calls = SortedDict(
-                {(self.clf.predict_proba(self.pivot), 0): [self.pivot.copy(), 0, 0]}
-            )
-            while len(self.calls) > 0:
-                # print([key[0] for key in self.calls])
-                _, call = self.calls.popitem()
-                self.find_candidates(*call)
-
-        if not self.clean_suboptimal:
-            solutions = []
-            for i, solution in enumerate(self.solutions):
-                optimal = True
-                for j, comp_sol in enumerate(self.solutions):
-                    if self.compare.greater_than(solution, comp_sol):
-                        if i < j or not self.compare.greater_than(comp_sol, solution):
-                            optimal = False
-                            break
-                if optimal:
-                    solutions += [solution]
-            self.solutions = solutions
+        self.idd = 0
+        self.calls = SortedDict(
+            {(self.clf.predict_proba(self.pivot), 0): [self.pivot.copy(), 0, 0]}
+        )
+        while len(self.calls) > 0:
+            _, call = self.calls.popitem()
+            self.find_candidates(*call)
+            if len(self.solutions) >= self.total_CFs:
+                print("Stoped due to maximum CFs")
+                break
 
         return self
