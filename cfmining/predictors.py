@@ -131,7 +131,7 @@ class GeneralClassifier_Shap:
         self,
         classifier,
         X=None,
-        y=None,
+        categorical_features=[],
         method_predict_max="shap",
         tree = False,
         threshold=0.5,
@@ -140,6 +140,7 @@ class GeneralClassifier_Shap:
         self.threshold = threshold
         self.feature_names = X.columns.tolist()
         self.n_features = X.shape[1]
+        self.categorical_features = categorical_features
         self.method_predict_max = method_predict_max
         self.tree = tree
         self.use_log_odds = True if not tree else False
@@ -158,6 +159,7 @@ class GeneralClassifier_Shap:
             self.explainer = shap.TreeExplainer(self.clf, X100, model_output="probability", feature_perturbation="interventional")
 
         self.shap_values = self.explainer(X)
+        self.calculate_categorical_importances(X)
         self.importances = np.abs(self.shap_values.values).mean(0)
         if method_predict_max == "shap":
             self.shap_max = self.shap_values.values.max(0)
@@ -190,6 +192,29 @@ class GeneralClassifier_Shap:
     def monotone(self):
         return False
 
+    def calculate_categorical_importances(self, X):
+        """Calculate the feature importance of categorical features based on shap values."""
+
+        cat_importances = {}
+        for col in self.categorical_features:
+            cat_importances[col] = {}
+            col_idx = self.feature_names.index(col)
+            feature_values = X[col].unique()
+            for value in feature_values:
+                idx = np.where((X[col] == value).values)[0]
+                shap_values_feat = self.shap_values.values[idx, col_idx]
+                cat_importances[col][value] = shap_values_feat.mean()
+
+        self.cat_importances = cat_importances
+    
+    def update_categorical_grid(self, col, grid):
+        """Update the grid of categorical feature values for a specific feature."""
+        imp = self.cat_importances[col]
+        value = [imp[v] if v in imp else -np.inf for v in grid]
+        new_grid = grid.copy()
+        new_grid = [x for _, x in sorted(zip(value, new_grid))]
+        return new_grid
+                
     def predict(self, value):
         """Predicts if the probability is higher than threshold"""
         if self.predict_proba(value) >= self.threshold:
