@@ -33,15 +33,15 @@ RUN pip install numpy \
     matplotlib \
     pandas==2.0.3 \
     sortedcontainers \
-    line_profiler \
+    line-profiler \
     eli5 \
     lightgbm \
     mip \
     graphviz \
     shap \
-    scikit-learn<1.3 \
+    "scikit-learn<1.3" \
     isotree \
-    dice_ml \ 
+    dice-ml \ 
     optuna
 
 
