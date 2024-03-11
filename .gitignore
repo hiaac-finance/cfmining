@@ -89,3 +89,10 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+
+# Some folders
+
+/results
+/data
+/models
