@@ -42,7 +42,9 @@ RUN pip install numpy \
     "scikit-learn<1.3" \
     isotree \
     dice-ml \ 
-    optuna
+    optuna \
+    xxhash \
+    prettytable
 
 
 # Install jupyter
@@ -63,4 +65,4 @@ RUN pip install jupyter \
 # docker exec -ti -u $USER mapofcem bash
 
 # To run jupyter:
-# docker exec -ti -u $USER credit bash -c "jupyter-lab --port 30001 --ip 0.0.0.0"
+# docker exec -ti -u $USER mapofcem bash -c "jupyter-lab --port 30001 --ip 0.0.0.0"

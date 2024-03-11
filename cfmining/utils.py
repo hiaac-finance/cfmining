@@ -1,4 +1,11 @@
 import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+import joblib
+
+VAL_RATIO = 1 / 7
+TEST_RATIO = 3 / 10
+SEED = 0
 
 
 class OutlierWrap:
@@ -10,6 +17,25 @@ class OutlierWrap:
         pred = self.outlier_clf.predict(X)
         pred = np.where(pred < self.threshold, 1, -1)
         return pred
+
+
+def get_data_model(dataset, model_name = "LGBMClassifier"):
+    """Helper function to load the dataset and model."""
+    df = pd.read_csv(f"../data/{dataset}.csv")
+    if dataset == "german":
+        X = df.drop("GoodCustomer", axis=1)
+        Y = df["GoodCustomer"]
+
+    X_train, X_test, Y_train, _ = train_test_split(
+        X, Y, test_size=TEST_RATIO, random_state=SEED, shuffle=True
+    )
+
+    outlier_detection = joblib.load(f"../models/{dataset}/IsolationForest.pkl")
+    model = joblib.load(f"../models/{dataset}/{model_name}.pkl")
+    denied_individ = model.predict(X_test) == 0
+    individuals = X_test.iloc[denied_individ].reset_index(drop=True)
+
+    return X_train, Y_train, model, outlier_detection, individuals
 
 
 def diversity_metric(solutions):
