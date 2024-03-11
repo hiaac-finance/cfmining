@@ -19,12 +19,15 @@ class OutlierWrap:
         return pred
 
 
-def get_data_model(dataset, model_name = "LGBMClassifier"):
+def get_data_model(dataset, model_name="LGBMClassifier"):
     """Helper function to load the dataset and model."""
     df = pd.read_csv(f"../data/{dataset}.csv")
     if dataset == "german":
         X = df.drop("GoodCustomer", axis=1)
         Y = df["GoodCustomer"]
+    elif dataset == "taiwan":
+        X = df.drop("NoDefaultNextMonth", axis=1)
+        Y = df["NoDefaultNextMonth"]
 
     X_train, X_test, Y_train, _ = train_test_split(
         X, Y, test_size=TEST_RATIO, random_state=SEED, shuffle=True
