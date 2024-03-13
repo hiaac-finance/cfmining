@@ -637,6 +637,7 @@ class MAPOFCEM:
         self.feas_grid_size = np.array(
             [len(self.feas_grid[feat_name]) for feat_name in self.names]
         )
+        self.mutable_features = np.where(self.feas_grid_size > 1)[0]
 
         if not hasattr(self.clf, "predict_max"):
             self.max_action = np.array(
@@ -722,6 +723,10 @@ class MAPOFCEM:
             new_changes = changes + (value != self.pivot[next_idx])
             if new_changes >= self.max_changes:
                 continue
+            
+            open_vars = np.append(
+                self.mutable_features, self.sequence[new_size:]
+            )
 
             # Calculate max probability of solution
             max_prob = 1
@@ -732,11 +737,7 @@ class MAPOFCEM:
                 ]
                 max_prob = self.clf.predict_proba(max_sol)
             elif hasattr(self.clf, "predict_max"):
-                # get features with grid size equal to 1
-                fixed_vars = np.where(self.feas_grid_size == 1)[0]
-                # append features from the solution
-                fixed_vars = np.append(fixed_vars, self.sequence[:new_size])
-                max_prob = self.clf.predict_max(new_solution, fixed_vars)
+                max_prob = self.clf.predict_max(new_solution, open_vars)
 
             # If max probability will be lower than the threshold, continue
             if max_prob < self.clf.threshold - self.eps:
@@ -746,10 +747,6 @@ class MAPOFCEM:
             # If the partial solution is already an outlier, skip it
             if self.outlier_detection is not None:
                 if self.estimate_outlier:
-                    fixed_vars = np.append(
-                        np.where(self.feas_grid_size == 1)[0], self.sequence[:new_size]
-                    )
-                    open_vars = np.setdiff1d(np.arange(self.d), fixed_vars)
                     new_solution_with_nan = new_solution.copy().astype(float)
                     new_solution_with_nan[open_vars] = np.nan
                     outlier = (

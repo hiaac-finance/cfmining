@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import sklearn
 import shap
+from functools import lru_cache
 
 
 def mean_plus_dev_error(y_ref, y_pred, dev=2):
@@ -183,6 +184,9 @@ class GeneralClassifier_Shap:
                     self.action_max.append(min_values[i])
                 else:
                     self.action_max.append(max_values[i])
+        self.shap_explanation = lru_cache(maxsize=10000)(self.shap_explanation)
+        self._predict_proba = lru_cache(maxsize=10000)(self._predict_proba)
+
 
     @property
     def feat_importance(self):
@@ -222,18 +226,32 @@ class GeneralClassifier_Shap:
         else:
             return False
 
+    def _predict_proba(self, value):
+        """Cached function to calculate the probability."""
+        value = np.array([value])
+        return self.clf.predict_proba(value)[0, 1]
+
     def predict_proba(self, value):
         """Calculates probability of achieving desired classification."""
-        return self.clf.predict_proba([value])[0, 1]
+        return self._predict_proba(tuple(value))
+        
+    def shap_explanation(self, value):
+        """Calculates the shap explanation for a specific sample."""
+        value = np.array([value])
+        return self.explainer(value)[0].values
+    
+    def clear_cache(self):
+        """Clears the cache of the shap explanation."""
+        self.shap_explanation.cache_clear()
+        self._predict_proba.cache_clear()
 
-    def predict_max(self, value, fixed_vars):
+
+    def predict_max(self, value, open_vars):
         """Calculates probability of achieving desired classification."""
-        if type(value) is list or type(value) is np.ndarray:
-            value = pd.DataFrame([value], columns=self.feature_names)
-        open_vars = list(set(range(self.n_features)).difference(fixed_vars))
-        prob = self.clf.predict_proba(value)[:, 1]
+        
         if self.method_predict_max == "shap":
-            shap_individual = self.explainer(value)[0].values
+            shap_individual = self.shap_explanation(tuple(value))
+            prob = self.predict_proba(value)
             if self.use_log_odds:
                 shap_individual = np.exp(shap_individual) / (1 + np.exp(shap_individual))
             return (
