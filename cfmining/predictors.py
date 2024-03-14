@@ -131,6 +131,7 @@ class GeneralClassifier_Shap:
     def __init__(
         self,
         classifier,
+        outlier_classifier,
         X=None,
         categorical_features=[],
         method_predict_max="shap",
@@ -138,6 +139,7 @@ class GeneralClassifier_Shap:
         threshold=0.5,
     ):
         self.clf = classifier
+        self.outlier_clf = outlier_classifier
         self.threshold = threshold
         self.feature_names = X.columns.tolist()
         self.n_features = X.shape[1]
@@ -186,6 +188,7 @@ class GeneralClassifier_Shap:
                     self.action_max.append(max_values[i])
         self.shap_explanation = lru_cache(maxsize=10000)(self.shap_explanation)
         self._predict_proba = lru_cache(maxsize=10000)(self._predict_proba)
+        self._predict_outlier = lru_cache(maxsize=10000)(self._predict_outlier)
 
 
     @property
@@ -234,6 +237,15 @@ class GeneralClassifier_Shap:
     def predict_proba(self, value):
         """Calculates probability of achieving desired classification."""
         return self._predict_proba(tuple(value))
+    
+    def _predict_outlier(self, value):
+        """Cache function to predict if the sample is an outlier."""
+        value = np.array([value])
+        return self.outlier_clf.predict(value)[0]
+    
+    def predict_outlier(self, value):
+        """Predicts if the sample is an outlier."""
+        return self._predict_outlier(tuple(value))
         
     def shap_explanation(self, value):
         """Calculates the shap explanation for a specific sample."""
@@ -244,6 +256,7 @@ class GeneralClassifier_Shap:
         """Clears the cache of the shap explanation."""
         self.shap_explanation.cache_clear()
         self._predict_proba.cache_clear()
+        self._predict_outlier.cache_clear()
 
 
     def predict_max(self, value, open_vars):

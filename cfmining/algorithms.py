@@ -609,10 +609,8 @@ class MAPOFCEM:
         action_set,
         pivot,
         classifier,
-        outlier_detection=None,
         estimate_outlier=False,
         max_changes=3,
-        total_CFs=4,
         categorical_features=None,
         compare=None,
     ):
@@ -620,10 +618,8 @@ class MAPOFCEM:
         assert type(pivot) is np.ndarray, "pivot should be a numpy array"
         self.pivot = pivot
         self.clf = classifier
-        self.outlier_detection = outlier_detection
         self.estimate_outlier = estimate_outlier
         self.max_changes = max_changes
-        self.total_CFs = total_CFs
         self.categorical_features = categorical_features
         assert compare is not None
         self.compare = compare
@@ -638,18 +634,6 @@ class MAPOFCEM:
             [len(self.feas_grid[feat_name]) for feat_name in self.names]
         )
         self.mutable_features = np.where(self.feas_grid_size > 1)[0]
-
-        if not hasattr(self.clf, "predict_max"):
-            self.max_action = np.array(
-                [
-                    (
-                        max(self.feas_grid[feat_name])
-                        if action_set[feat_name].flip_direction == 1
-                        else min(self.feas_grid[feat_name])
-                    )
-                    for feat_name in self.names
-                ]
-            )
 
         self.sequence = np.argsort(classifier.feat_importance)[::-1]
         self.solutions = []
@@ -697,15 +681,12 @@ class MAPOFCEM:
                 if self.compare.greater_than(new_solution, old_sol):
                     return
 
-            outlier = False
             # If is a solution, save it
             new_proba = self.clf.predict_proba(new_solution)
             if new_proba >= self.clf.threshold - self.eps:
                 # Only save if it is not an outlier
-                if self.outlier_detection is not None:
-                    outlier = (
-                        self.outlier_detection.predict(new_solution[None, :]) == -1
-                    )
+
+                outlier = self.clf.predict_outlier(new_solution) == -1
 
                 if outlier:
                     self.outlier_detection_counter += 1
@@ -723,20 +704,12 @@ class MAPOFCEM:
             new_changes = changes + (value != self.pivot[next_idx])
             if new_changes >= self.max_changes:
                 continue
-            
-            open_vars = np.append(
-                self.mutable_features, self.sequence[new_size:]
-            )
+
+            open_vars = np.append(self.mutable_features, self.sequence[new_size:])
 
             # Calculate max probability of solution
             max_prob = 1
-            if self.clf.monotone:
-                max_sol = self.max_action.copy()
-                max_sol[self.sequence[:new_size]] = new_solution[
-                    self.sequence[:new_size]
-                ]
-                max_prob = self.clf.predict_proba(max_sol)
-            elif hasattr(self.clf, "predict_max"):
+            if hasattr(self.clf, "predict_max"):
                 max_prob = self.clf.predict_max(new_solution, open_vars)
 
             # If max probability will be lower than the threshold, continue
@@ -745,17 +718,14 @@ class MAPOFCEM:
                 continue
 
             # If the partial solution is already an outlier, skip it
-            if self.outlier_detection is not None:
-                if self.estimate_outlier:
-                    new_solution_with_nan = new_solution.copy().astype(float)
-                    new_solution_with_nan[open_vars] = np.nan
-                    outlier = (
-                        self.outlier_detection.predict(new_solution_with_nan[None, :])
-                        == -1
-                    )
-                    if outlier:
-                        self.outlier_detection_counter += 1
-                        continue
+
+            if self.estimate_outlier:
+                new_solution_with_nan = new_solution.copy().astype(float)
+                new_solution_with_nan[open_vars] = np.nan
+                outlier = self.clf.predict_outlier(new_solution_with_nan) == -1
+                if outlier:
+                    self.outlier_detection_counter += 1
+                    continue
 
             self.idd += 1
             self.calls[(new_proba, self.idd)] = [
@@ -775,8 +745,5 @@ class MAPOFCEM:
         while len(self.calls) > 0:
             _, call = self.calls.popitem()
             self.find_candidates(*call)
-            if len(self.solutions) >= self.total_CFs:
-                print("Stoped due to maximum CFs")
-                break
 
         return self
