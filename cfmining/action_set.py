@@ -661,6 +661,7 @@ class ActionSet(object):
         custom_bounds = kwargs.get("custom_bounds", {})
         default_bounds = kwargs.get("default_bounds", self._default_bounds)
         default_step_type = kwargs.get("default_step_type", self._default_step_type)
+        default_step_size = kwargs.get("default_step_size", 0.01)
         self.print_flag = kwargs.get("print_flag", self._default_print_flag)
         self.check_flag = kwargs.get("check_flag", self._default_check_flag)
 
@@ -672,6 +673,7 @@ class ActionSet(object):
                 name=n,
                 values=X[:, j],
                 step_type=default_step_type,
+                step_size = default_step_size,
                 bounds=custom_bounds.get(n, default_bounds),
             )
             indices[n] = j

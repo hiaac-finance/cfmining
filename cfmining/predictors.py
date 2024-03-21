@@ -155,14 +155,14 @@ class GeneralClassifier_Shap:
                 return log_odds
             return p
     
-        X100 = X.sample(100)
+        X100 = X.sample(1000 if len(X) > 1000 else 100)
         if not tree:
             self.explainer = shap.Explainer(predict_proba, X100)
         else:
             self.explainer = shap.TreeExplainer(self.clf, X100, model_output="probability", feature_perturbation="interventional")
 
-        self.shap_values = self.explainer(X)
-        self.calculate_categorical_importances(X)
+        self.shap_values = self.explainer(X100)
+        #self.calculate_categorical_importances(X)
         self.importances = np.abs(self.shap_values.values).mean(0)
         if method_predict_max == "shap":
             self.shap_max = self.shap_values.values.max(0)
