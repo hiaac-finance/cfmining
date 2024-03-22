@@ -150,9 +150,7 @@ class MAPOCAM:
             self.solutions += [solution]
 
     def find_candidates(self, solution=None, size=0, changes=0):
-        print(size)
         next_idx = self.sequence[size]
-        print(next_idx)
         next_name = self.names[next_idx]
 
         for value in self.feas_grid[next_name]:

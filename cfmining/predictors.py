@@ -144,6 +144,7 @@ class GeneralClassifier_Shap:
         self.feature_names = X.columns.tolist()
         self.n_features = X.shape[1]
         self.categorical_features = categorical_features
+        self.use_predict_max = True
         self.method_predict_max = method_predict_max
         self.tree = tree
         self.use_log_odds = True if not tree else False
