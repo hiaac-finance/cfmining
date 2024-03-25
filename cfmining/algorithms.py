@@ -704,6 +704,8 @@ class MAPOFCEM:
                 continue
 
             open_vars = np.append(self.mutable_features, self.sequence[new_size:])
+            # remove repeated features
+            open_vars = np.unique(open_vars)
 
             # Calculate max probability of solution
             max_prob = 1
