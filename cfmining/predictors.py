@@ -277,6 +277,23 @@ class GeneralClassifier_Shap:
                 value_copy.iloc[0, i] = self.action_max[i]
             return self.clf.predict_proba(value_copy)[:, 1]
 
+    def set_pivot(self, pivot):
+        self.pivot = pivot
+        self.pivot_explanation = self.shap_explanation(tuple(pivot))
+
+        if self.use_log_odds:
+            self.pivot_explanation = np.exp(self.pivot_explanation) / (1 + np.exp(self.pivot_explanation))
+
+    def estimate_predict_max(self, value, open_vars):
+        """Estimates the maximal probability of a partial sample."""
+        prob = self.predict_proba(value)
+        prob = prob - self.pivot_explanation[open_vars].sum() + self.shap_max[open_vars].sum()
+
+        if prob < self.threshold:
+            prob = self.predict_max(value, open_vars)
+        
+        return prob
+
 
 class MonotoneClassifier(GeneralClassifier):
     """Wrapper to general type of classifer.

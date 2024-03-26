@@ -21,9 +21,16 @@ class OutlierWrap:
 
 def get_data_model(dataset, model_name="LGBMClassifier"):
     """Helper function to load the dataset and model."""
-    df = pd.read_csv(f"../data/{dataset}.csv")
+    if dataset in ["german", "taiwan"]:
+        df = pd.read_csv(f"../data/{dataset}.csv")
+    elif dataset == "german_small":
+        df = pd.read_csv(f"../data/german.csv")
     if dataset == "german":
         X = df.drop("GoodCustomer", axis=1)
+        Y = df["GoodCustomer"]
+    if dataset == "german_small":
+        X = df.drop("GoodCustomer", axis=1)
+        X = X[["LoanAmount", "LoanDuration", "OwnsHouse", "is_male"]]
         Y = df["GoodCustomer"]
     elif dataset == "taiwan":
         X = df.drop("NoDefaultNextMonth", axis=1)

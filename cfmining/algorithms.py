@@ -607,6 +607,7 @@ class MAPOFCEM:
         action_set,
         pivot,
         classifier,
+        estimate_prob_max = True,
         estimate_outlier=False,
         max_changes=3,
         categorical_features=None,
@@ -616,6 +617,9 @@ class MAPOFCEM:
         assert type(pivot) is np.ndarray, "pivot should be a numpy array"
         self.pivot = pivot
         self.clf = classifier
+        if hasattr(self.clf, "set_pivot"):
+            self.clf.set_pivot(pivot)
+        self.estimate_prob_max = estimate_prob_max
         self.estimate_outlier = estimate_outlier
         self.max_changes = max_changes
         self.categorical_features = categorical_features
@@ -710,7 +714,10 @@ class MAPOFCEM:
             # Calculate max probability of solution
             max_prob = 1
             if hasattr(self.clf, "predict_max"):
-                max_prob = self.clf.predict_max(new_solution, open_vars)
+                if self.estimate_prob_max:
+                    max_prob = self.clf.estimate_predict_max(new_solution, open_vars)
+                else:
+                    max_prob = self.clf.predict_max(new_solution, open_vars)
 
             # If max probability will be lower than the threshold, continue
             if max_prob < self.clf.threshold - self.eps:
