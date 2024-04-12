@@ -607,7 +607,7 @@ class MAPOFCEM:
         action_set,
         pivot,
         classifier,
-        estimate_prob_max = True,
+        estimate_prob_max=True,
         estimate_outlier=False,
         max_changes=3,
         categorical_features=None,
@@ -715,9 +715,13 @@ class MAPOFCEM:
             max_prob = 1
             if hasattr(self.clf, "predict_max"):
                 if self.estimate_prob_max:
-                    max_prob = self.clf.estimate_predict_max(new_solution, open_vars)
+                    max_prob = self.clf.estimate_predict_max(
+                        new_solution, open_vars, self.max_changes - new_changes
+                    )
                 else:
-                    max_prob = self.clf.predict_max(new_solution, open_vars)
+                    max_prob = self.clf.predict_max(
+                        new_solution, open_vars, self.max_changes - new_changes
+                    )
 
             # If max probability will be lower than the threshold, continue
             if max_prob < self.clf.threshold - self.eps:

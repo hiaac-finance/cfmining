@@ -260,7 +260,7 @@ class GeneralClassifier_Shap:
         self._predict_outlier.cache_clear()
 
 
-    def predict_max(self, value, open_vars):
+    def predict_max(self, value, open_vars, n_changes = None):
         """Calculates probability of achieving desired classification."""
         
         if self.method_predict_max == "shap":
@@ -268,9 +268,16 @@ class GeneralClassifier_Shap:
             prob = self.predict_proba(value)
             if self.use_log_odds:
                 shap_individual = np.exp(shap_individual) / (1 + np.exp(shap_individual))
-            return (
-                prob - shap_individual[open_vars].sum() + self.shap_max[open_vars].sum()
-            )
+            if n_changes is not None:
+                open_vars_big = np.argsort(self.shap_max)[::-1].tolist()
+                open_vars_big = [i for i in open_vars_big if i in open_vars]
+                open_vars_big = open_vars_big[:n_changes]
+                prob = prob - shap_individual[open_vars_big].sum() + self.shap_max[open_vars_big].sum()
+            else:
+                prob = prob - shap_individual[open_vars].sum() + self.shap_max[open_vars].sum()
+            
+            return prob
+        
         elif self.method_predict_max == "monotone":
             value_copy = value.copy()
             for i in open_vars:
@@ -284,13 +291,20 @@ class GeneralClassifier_Shap:
         if self.use_log_odds:
             self.pivot_explanation = np.exp(self.pivot_explanation) / (1 + np.exp(self.pivot_explanation))
 
-    def estimate_predict_max(self, value, open_vars):
+    def estimate_predict_max(self, value, open_vars, n_changes = None):
         """Estimates the maximal probability of a partial sample."""
         prob = self.predict_proba(value)
-        prob = prob - self.pivot_explanation[open_vars].sum() + self.shap_max[open_vars].sum()
+        if n_changes is not None:
+            # get index of n_changes most important features
+            open_vars_big = np.argsort(self.shap_max)[::-1].tolist()
+            open_vars_big = [i for i in open_vars_big if i in open_vars]
+            open_vars_big = open_vars_big[:n_changes]
+            prob = prob - self.pivot_explanation[open_vars_big].sum() + self.shap_max[open_vars_big].sum()
+        else:
+            prob = prob - self.pivot_explanation[open_vars].sum() + self.shap_max[open_vars].sum()
 
         if prob < self.threshold:
-            prob = self.predict_max(value, open_vars)
+            prob = self.predict_max(value, open_vars, n_changes)
         
         return prob
 
