@@ -628,6 +628,9 @@ class ActionSet(object):
         :param default_step_type:
         :param print_flag: set to True to print a table with the ActionSet as _repr_
         :param check_flag: set to True to check for internal errors
+        :param default_step_type: default step type for all features, can be 'relative' or 'absolute'
+        :param default_step_size: default step size for all features
+        :param mutable_features: list of features that can be changed
         """
 
         assert isinstance(
@@ -664,6 +667,9 @@ class ActionSet(object):
         default_step_size = kwargs.get("default_step_size", 0.01)
         self.print_flag = kwargs.get("print_flag", self._default_print_flag)
         self.check_flag = kwargs.get("check_flag", self._default_check_flag)
+        self.mutable_features = kwargs.get("mutable_features", None)
+        if self.mutable_features is None:
+            self.mutable_features = names
 
         # build action elements
         indices = {}
@@ -675,6 +681,7 @@ class ActionSet(object):
                 step_type=default_step_type,
                 step_size = default_step_size,
                 bounds=custom_bounds.get(n, default_bounds),
+                mutable = n in self.mutable_features
             )
             indices[n] = j
 
