@@ -110,7 +110,6 @@ class GeneralClassifier:
         """Calculates probability of achieving desired classification."""
         return self.clf.predict_proba([value])[0, 1]
 
-
 class GeneralClassifier_Shap:
     """Wrapper to general type of classifer.
     It estimates the importance of the features using SHAP.
@@ -122,8 +121,8 @@ class GeneralClassifier_Shap:
         General classifier with predict_proba method.
     X : numpy array,
         Input Samples
-    y : numpy array,
-        Output Samples.
+    shap_explainer : str,
+        Method to calculate the SHAP values, can be ['permutation', 'tree']
     threshold : float,
         User defined threshold for the classification.
     """
@@ -135,7 +134,7 @@ class GeneralClassifier_Shap:
         X=None,
         categorical_features=[],
         method_predict_max="shap",
-        tree = False,
+        shap_explainer="permutation",
         threshold=0.5,
     ):
         self.clf = classifier
@@ -146,29 +145,25 @@ class GeneralClassifier_Shap:
         self.categorical_features = categorical_features
         self.use_predict_max = True
         self.method_predict_max = method_predict_max
-        self.tree = tree
-        self.use_log_odds = True if not tree else False
-        def predict_proba(x):
-            x = pd.DataFrame(x, columns=self.feature_names)
-            p = self.clf.predict_proba(x)[:, 1]
-            if self.use_log_odds:
-                log_odds = np.log(p / (1 - p))
-                return log_odds
-            return p
-    
+
         X100 = X.sample(1000 if len(X) > 1000 else 100)
-        if not tree:
+        if shap_explainer == "permutation":
+            predict_proba = lambda x: self.clf.predict_proba(x)[:, 1]
             self.explainer = shap.Explainer(predict_proba, X100)
-        else:
-            self.explainer = shap.TreeExplainer(self.clf, X100, model_output="probability", feature_perturbation="interventional")
+        elif shap_explainer == "tree":
+            self.explainer = shap.TreeExplainer(
+                self.clf,
+                X100,
+                model_output="probability",
+                feature_perturbation="interventional",
+            )
 
         self.shap_values = self.explainer(X100)
-        #self.calculate_categorical_importances(X)
+        # self.calculate_categorical_importances(X)
         self.importances = np.abs(self.shap_values.values).mean(0)
         if method_predict_max == "shap":
             self.shap_max = self.shap_values.values.max(0)
-            if self.use_log_odds:
-                self.shap_max = np.exp(self.shap_max) / (1 + np.exp(self.shap_max))
+
         elif method_predict_max == "monotone":
             min_values = X.values.min(0)
             max_values = X.values.max(0)
@@ -190,7 +185,6 @@ class GeneralClassifier_Shap:
         self.shap_explanation = lru_cache(maxsize=10000)(self.shap_explanation)
         self._predict_proba = lru_cache(maxsize=10000)(self._predict_proba)
         self._predict_outlier = lru_cache(maxsize=10000)(self._predict_outlier)
-
 
     @property
     def feat_importance(self):
@@ -214,7 +208,7 @@ class GeneralClassifier_Shap:
                 cat_importances[col][value] = shap_values_feat.mean()
 
         self.cat_importances = cat_importances
-    
+
     def update_categorical_grid(self, col, grid):
         """Update the grid of categorical feature values for a specific feature."""
         imp = self.cat_importances[col]
@@ -222,7 +216,7 @@ class GeneralClassifier_Shap:
         new_grid = grid.copy()
         new_grid = [x for _, x in sorted(zip(value, new_grid))]
         return new_grid
-                
+
     def predict(self, value):
         """Predicts if the probability is higher than threshold"""
         if self.predict_proba(value) >= self.threshold:
@@ -238,60 +232,63 @@ class GeneralClassifier_Shap:
     def predict_proba(self, value):
         """Calculates probability of achieving desired classification."""
         return self._predict_proba(tuple(value))
-    
+
     def _predict_outlier(self, value):
         """Cache function to predict if the sample is an outlier."""
         value = np.array([value])
         return self.outlier_clf.predict(value)[0]
-    
+
     def predict_outlier(self, value):
         """Predicts if the sample is an outlier."""
         return self._predict_outlier(tuple(value))
-        
+
     def shap_explanation(self, value):
         """Calculates the shap explanation for a specific sample."""
         value = np.array([value])
         return self.explainer(value)[0].values
-    
+
     def clear_cache(self):
         """Clears the cache of the shap explanation."""
         self.shap_explanation.cache_clear()
         self._predict_proba.cache_clear()
         self._predict_outlier.cache_clear()
 
+    def set_pivot(self, pivot):
+        self.pivot = pivot
+        self.pivot_explanation = self.shap_explanation(tuple(pivot))
 
-    def predict_max(self, value, open_vars, n_changes = None):
+    def predict_max(self, value, open_vars, n_changes=None):
         """Calculates probability of achieving desired classification."""
-        
+
         if self.method_predict_max == "shap":
             shap_individual = self.shap_explanation(tuple(value))
             prob = self.predict_proba(value)
-            if self.use_log_odds:
-                shap_individual = np.exp(shap_individual) / (1 + np.exp(shap_individual))
+
             if n_changes is not None:
                 open_vars_big = np.argsort(self.shap_max)[::-1].tolist()
                 open_vars_big = [i for i in open_vars_big if i in open_vars]
                 open_vars_big = open_vars_big[:n_changes]
-                prob = prob - shap_individual[open_vars_big].sum() + self.shap_max[open_vars_big].sum()
+                prob = (
+                    prob
+                    - shap_individual[open_vars_big].sum()
+                    + self.shap_max[open_vars_big].sum()
+                )
             else:
-                prob = prob - shap_individual[open_vars].sum() + self.shap_max[open_vars].sum()
-            
+                prob = (
+                    prob
+                    - shap_individual[open_vars].sum()
+                    + self.shap_max[open_vars].sum()
+                )
+
             return prob
-        
+
         elif self.method_predict_max == "monotone":
             value_copy = value.copy()
             for i in open_vars:
                 value_copy.iloc[0, i] = self.action_max[i]
             return self.clf.predict_proba(value_copy)[:, 1]
 
-    def set_pivot(self, pivot):
-        self.pivot = pivot
-        self.pivot_explanation = self.shap_explanation(tuple(pivot))
-
-        if self.use_log_odds:
-            self.pivot_explanation = np.exp(self.pivot_explanation) / (1 + np.exp(self.pivot_explanation))
-
-    def estimate_predict_max(self, value, open_vars, n_changes = None):
+    def estimate_predict_max(self, value, open_vars, n_changes=None):
         """Estimates the maximal probability of a partial sample."""
         prob = self.predict_proba(value)
         if n_changes is not None:
@@ -299,13 +296,21 @@ class GeneralClassifier_Shap:
             open_vars_big = np.argsort(self.shap_max)[::-1].tolist()
             open_vars_big = [i for i in open_vars_big if i in open_vars]
             open_vars_big = open_vars_big[:n_changes]
-            prob = prob - self.pivot_explanation[open_vars_big].sum() + self.shap_max[open_vars_big].sum()
+            prob = (
+                prob
+                - self.pivot_explanation[open_vars_big].sum()
+                + self.shap_max[open_vars_big].sum()
+            )
         else:
-            prob = prob - self.pivot_explanation[open_vars].sum() + self.shap_max[open_vars].sum()
+            prob = (
+                prob
+                - self.pivot_explanation[open_vars].sum()
+                + self.shap_max[open_vars].sum()
+            )
 
         if prob < self.threshold:
             prob = self.predict_max(value, open_vars, n_changes)
-        
+
         return prob
 
 
