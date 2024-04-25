@@ -44,7 +44,8 @@ RUN pip install numpy \
     dice-ml \ 
     optuna \
     xxhash \
-    prettytable
+    prettytable \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 
 # Install jupyter
