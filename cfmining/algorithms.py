@@ -9,6 +9,12 @@ import numpy as np
 from sortedcontainers import SortedDict
 
 from .criteria import NonDomCriterion
+from .criteria import (
+    PercentileCalculator,
+    PercentileCriterion,
+    PercentileChangesCriterion,
+    NonDomCriterion,
+)
 
 
 class MAPOCAM:
@@ -582,15 +588,12 @@ class MAPOFCEM:
 
     action_set : ActionSet type class,
         Contains the discretization of the features to find the counterfactual antecedents.
-    pivot : numpy type array,
-        Sample that had an undesired prediction that we want to find counterfactual antecedents
-        that change the outcome.
     classifier : predictor.Classifier type class
         Wrapper to help on finding the counterfactual antecedent.
     max_changes : int, optional (default=3)
         Maximal number of changes of a counterfactual antecedent.
-    compare : criteria type class.
-        Class that evaluate the cost of a counterfactual antecedent.
+    compare : str or criteria type class.
+        String with name of a criteria or a class that evaluate the cost of a counterfactual antecedent, if string must be in ['percentile', 'percentile_change', 'non_dom'].
 
     Attributes
     ----------
@@ -605,42 +608,46 @@ class MAPOFCEM:
     def __init__(
         self,
         action_set,
-        pivot,
         classifier,
+        compare="percentile",
         estimate_prob_max=True,
         estimate_outlier=False,
         max_changes=3,
         categorical_features=None,
-        compare=None,
     ):
         self.action_set = action_set
-        assert type(pivot) is np.ndarray, "pivot should be a numpy array"
-        self.pivot = pivot
         self.clf = classifier
-        if hasattr(self.clf, "set_pivot"):
-            self.clf.set_pivot(pivot)
-        self.estimate_prob_max = estimate_prob_max
-        self.estimate_outlier = estimate_outlier
-        self.max_changes = max_changes
-        self.categorical_features = categorical_features
-        assert compare is not None
-        self.compare = compare
-
         self.names = list(action_set.df["name"])
         self.d = len(self.names)
-        action_grid = action_set.feasible_grid(
-            pivot, return_percentiles=False, return_actions=False, return_immutable=True
-        )
-        self.feas_grid = {feat_name: action_grid[feat_name] for feat_name in self.names}
-        self.feas_grid_size = np.array(
-            [len(self.feas_grid[feat_name]) for feat_name in self.names]
-        )
-        self.mutable_features = np.where(self.feas_grid_size > 1)[0]
+        self.mutable_features = [
+            i for (i, name) in enumerate(self.names) if self.action_set[name].mutable
+        ]
+
+        if type(compare) is str:
+            if compare == "percentile":
+                self.perc_calc = PercentileCalculator(action_set=action_set)
+                self.compare_call = lambda cfe: PercentileCriterion(cfe, self.perc_calc)
+            elif compare == "percentile_change":
+                self.perc_calc = PercentileCalculator(action_set=action_set)
+                self.compare_call = lambda cfe: PercentileChangesCriterion(
+                    cfe, self.perc_calc
+                )
+            elif compare == "non_dom":
+                raise NotImplementedError("NonDomCriterion is not implemented yet")
+            else:
+                raise ValueError("compare must be a valid string")
+        else:
+            self.compare_call = compare
 
         self.sequence = np.argsort(classifier.feat_importance)[::-1]
-        self.solutions = []
-        self.prob_max_counter = 0
-        self.outlier_detection_counter = 0
+        self.max_changes = max_changes
+
+        # maybe remove later
+        self.estimate_prob_max = estimate_prob_max
+        self.estimate_outlier = estimate_outlier
+        self.categorical_features = categorical_features
+
+        return
 
     def update_solutions(self, solution):
         # remove dominated calls
@@ -745,10 +752,29 @@ class MAPOFCEM:
                 new_changes,
             ]
 
-    def fit(self):
+    def fit(self, pivot):
         """
         Find counterfactual antecedent given the data.
+
+        Parameters
+        ----------
+        pivot : numpy type array,
+            Sample that had an undesired prediction that we want to find counterfactual antecedents that change the outcome.
         """
+        assert type(pivot) is np.ndarray, "pivot should be a numpy array"
+        self.pivot = pivot
+        if hasattr(self.clf, "set_pivot"):
+            self.clf.set_pivot(pivot)
+        self.compare = self.compare_call(self.pivot)
+
+        self.feas_grid = self.action_set.feasible_grid(
+            pivot, return_percentiles=False, return_actions=False, return_immutable=True
+        )
+
+        self.solutions = []
+        self.prob_max_counter = 0
+        self.outlier_detection_counter = 0
+
         self.idd = 0
         self.calls = SortedDict(
             {(self.clf.predict_proba(self.pivot), 0): [self.pivot.copy(), 0, 0]}
