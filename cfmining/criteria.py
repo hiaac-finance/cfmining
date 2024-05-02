@@ -169,12 +169,10 @@ class NonDomCriterion():
     
     pivot : numpy array,
         Sample in which we want to observe the shift and calculate the cost.
-    perc_calc : PercentileCalculator class,
-        Percentile calculator for that set of samples.     
     """
-    def __init__(self, direc):
-        self.direc=direc
+    def __init__(self, pivot):
+        self.pivot = np.ascontiguousarray(pivot)
     
     def greater_than(self, new_sol, old_sol):
         """Order two solutions."""
-        return all(self.direc*new_sol>=self.direc*old_sol)
+        return all(np.abs(new_sol-self.pivot)>=np.abs(old_sol-self.pivot))

@@ -633,7 +633,7 @@ class MAPOFCEM:
                     cfe, self.perc_calc
                 )
             elif compare == "non_dom":
-                raise NotImplementedError("NonDomCriterion is not implemented yet")
+                self.compare_call = lambda cfe : NonDomCriterion(cfe)
             else:
                 raise ValueError("compare must be a valid string")
         else:
