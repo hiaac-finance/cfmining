@@ -110,6 +110,7 @@ class GeneralClassifier:
         """Calculates probability of achieving desired classification."""
         return self.clf.predict_proba([value])[0, 1]
 
+
 class GeneralClassifier_Shap:
     """Wrapper to general type of classifer.
     It estimates the importance of the features using SHAP.
@@ -156,6 +157,11 @@ class GeneralClassifier_Shap:
                 X100,
                 model_output="probability",
                 feature_perturbation="interventional",
+            )
+        elif shap_explainer == "deep":
+            self.explainer = shap.DeepExplainer(
+                self.clf,
+                X100,
             )
 
         self.shap_values = self.explainer(X100)
