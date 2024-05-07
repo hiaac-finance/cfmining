@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.base import BaseEstimator, ClassifierMixin
+from tqdm import tqdm
 
 class MLPClassifier(BaseEstimator, ClassifierMixin):
     """MLPClassifier in the Sklearn API using PyTorch.
@@ -36,8 +37,6 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
         hidden_layer_sizes=(100,),
         batch_size=32,
         learning_rate_init=0.001,
-        learning_rate_decay_rate=0.1,
-        alpha=0.0001,
         epochs=100,
         class_weight=None,
         random_state=None,
@@ -47,8 +46,6 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
         self.hidden_layer_sizes = hidden_layer_sizes
         self.batch_size = batch_size
         self.learning_rate_init = learning_rate_init
-        self.learning_rate_decay_rate = learning_rate_decay_rate
-        self.alpha = alpha
         self.epochs = epochs
         self.class_weight = class_weight
 
@@ -78,7 +75,7 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
         model = nn.Sequential(*layers)
         return model
 
-    def fit(self, X, y, sample_weight=None):
+    def fit(self, X, y):
         if self.class_weight == "balanced":
             class_counts = np.bincount(y)
             class_weights = torch.tensor([1 / class_counts[i] for i in range(len(class_counts))], dtype=torch.float)
@@ -95,8 +92,7 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
             y = y.values
 
         criterion = nn.BCELoss()
-        optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate_init, weight_decay=self.alpha)
-        scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=1 - self.learning_rate_decay_rate)
+        optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate_init)
 
         X_tensor = torch.tensor(X, dtype=torch.float32)
         y_tensor = torch.tensor(y, dtype=torch.float32).view(-1, 1)
@@ -107,7 +103,7 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
             y_tensor = y_tensor.cuda()
 
         dataset = TensorDataset(X_tensor, y_tensor)
-        dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+        dataloader = DataLoader(dataset, batch_size=self.batch_size)
 
         for epoch in range(self.epochs):
             self.model.train()
@@ -117,7 +113,6 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
                 loss = criterion(outputs, labels)
                 loss.backward()
                 optimizer.step()
-            scheduler.step()
 
     def predict_proba(self, X):
         self.model.eval()
