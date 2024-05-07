@@ -136,6 +136,7 @@ class GeneralClassifier_Shap:
         categorical_features=[],
         method_predict_max="shap",
         shap_explainer="permutation",
+        explainer=None,
         threshold=0.5,
     ):
         self.clf = classifier
@@ -163,6 +164,8 @@ class GeneralClassifier_Shap:
                 self.clf,
                 X100,
             )
+        elif shap_explainer == "custom":
+            self.explainer = explainer
 
         self.shap_values = self.explainer(X100)
         # self.calculate_categorical_importances(X)

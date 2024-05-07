@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
+import shap
+import torch
 import joblib
 
 VAL_RATIO = 1 / 7
@@ -65,3 +67,35 @@ def proximity_metric(individual, solutions):
 def sparsity_metric(individual, solutions):
     """Measure the sparsity metric of solutions, i.e., the number of changes."""
     return np.sum(individual != solutions, axis=1)
+
+
+class DeepPipeExplainer:
+    """Wrap class that handles pipeline with shap.DeepExplaienr"""
+
+    def __init__(self, pipeline, background_data):
+        self.preprocess = pipeline[:-1]
+        self.model = pipeline[-1].model
+        self.background_data = self.preprocess.transform(background_data)
+
+        if type(self.background_data) == pd.DataFrame:
+            self.background_data = self.background_data.values
+        self.explainer = shap.DeepExplainer(
+            self.model, torch.Tensor(self.background_data)
+        )
+
+    def __call__(self, X):
+        X = self.preprocess.transform(X)
+        if type(X) == pd.DataFrame:
+            X = X.values
+        values = self.explainer.shap_values(torch.Tensor(X))
+        # return an explanation object
+        return shap.Explanation(values)
+
+    def explain_row(self, X):
+        X = self.preprocess.transform(X)
+        if type(X) == pd.DataFrame:
+            X = X.values
+        return self.explainer.shap_values(torch.Tensor(X))
+
+
+deep_pipe_explainer = DeepPipeExplainer(model_MLP, X_train.sample(100))
