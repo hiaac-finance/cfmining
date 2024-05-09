@@ -42,6 +42,7 @@ RUN pip install numpy \
     "scikit-learn<1.3" \
     isotree \
     dice-ml \ 
+    NICEx \
     optuna \
     xxhash \
     prettytable \

@@ -96,6 +96,3 @@ class DeepPipeExplainer:
         if type(X) == pd.DataFrame:
             X = X.values
         return self.explainer.shap_values(torch.Tensor(X))
-
-
-deep_pipe_explainer = DeepPipeExplainer(model_MLP, X_train.sample(100))
