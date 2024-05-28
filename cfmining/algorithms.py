@@ -614,9 +614,12 @@ class MAPOFCEM:
         estimate_outlier=False,
         max_changes=3,
         categorical_features=None,
+        outlier_percentile=0.05,
     ):
         self.action_set = action_set
         self.clf = classifier
+        self.outlier_percentile = outlier_percentile
+        self.clf.outlier_clf.percentile = outlier_percentile
         self.names = list(action_set.df["name"])
         self.d = len(self.names)
         self.mutable_features = [

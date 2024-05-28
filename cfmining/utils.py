@@ -4,6 +4,8 @@ from sklearn.model_selection import train_test_split
 import shap
 import torch
 import joblib
+from scipy.interpolate import interp1d
+from scipy.stats import gaussian_kde as kde
 
 VAL_RATIO = 1 / 7
 TEST_RATIO = 3 / 10
@@ -11,13 +13,38 @@ SEED = 0
 
 
 class OutlierWrap:
-    def __init__(self, outlier_clf, threshold):
+    def __init__(self, X, outlier_clf, percentile):
         self.outlier_clf = outlier_clf
-        self.threshold = threshold
+        self._percentile = percentile
+        preds = self.outlier_clf.predict(X)
+        # build interpolator that returns a threshold for each percentile
+        kde_estimator = kde(preds)
+        cdf = np.cumsum(kde_estimator(np.linspace(0, 1, 101)))
+        self.percentile_interp = interp1d(
+            cdf,
+            np.linspace(0, 1, 101),
+            copy=False,
+            bounds_error=False,
+            assume_sorted=True,
+        )
+        self._threshold = self.percentile_interp(100*(1 - percentile))
+
+    @property
+    def percentile(self):
+        return self._percentile
+
+    @percentile.setter
+    def percentile(self, value):
+        self._percentile = value
+        self._threshold = self.percentile_interp(100*(1 - value))
 
     def predict(self, X):
         pred = self.outlier_clf.predict(X)
-        pred = np.where(pred < self.threshold, 1, -1)
+        pred = np.where(pred < self._threshold, 1, -1)
+        return pred
+
+    def score(self, X):
+        pred = self.outlier_clf.predict(X)
         return pred
 
 

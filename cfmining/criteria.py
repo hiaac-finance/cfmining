@@ -84,7 +84,7 @@ class PercentileCalculator():
             assert X is not None or action_set is not None, 'X or action_set should not be None.'
             if action_set is not None:
                 self.action_set = action_set
-            elif X is None:
+            elif X is not None:
                 from cfmining.action_set import ActionSet
                 self.action_set = ActionSet(X = X)
                 
