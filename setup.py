@@ -78,6 +78,9 @@ try:
         "shap",
         "scikit-learn<1.3",
         "isotree",
+        "xxhash",
+        "NICEx",
+        "dice-ml",
     ]
 except:
     from distutils.core import setup
