@@ -235,7 +235,10 @@ class GeneralClassifier_Shap:
 
     def _predict_proba(self, value):
         """Cached function to calculate the probability."""
-        value = np.array([value])
+        value = pd.DataFrame(
+            data = [value],
+            columns = self.feature_names
+        )
         return self.clf.predict_proba(value)[0, 1]
 
     def predict_proba(self, value):
@@ -253,7 +256,10 @@ class GeneralClassifier_Shap:
 
     def shap_explanation(self, value):
         """Calculates the shap explanation for a specific sample."""
-        value = np.array([value])
+        value = pd.DataFrame(
+            data = [value],
+            columns = self.feature_names
+        )
         return self.explainer(value)[0].values
 
     def clear_cache(self):

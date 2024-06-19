@@ -115,6 +115,7 @@ class DeepPipeExplainer:
         if type(X) == pd.DataFrame:
             X = X.values
         values = self.explainer.shap_values(torch.Tensor(X))
+        values = np.squeeze(values, 2)
         # return an explanation object
         return shap.Explanation(values)
 
