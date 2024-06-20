@@ -40,6 +40,7 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
         epochs=100,
         class_weight=None,
         random_state=None,
+        device = None
     ):
         self._random_state = random_state
         self._seed_everything(random_state)
@@ -48,6 +49,7 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
         self.learning_rate_init = learning_rate_init
         self.epochs = epochs
         self.class_weight = class_weight
+        self.device = device
 
     @property
     def random_state(self):
@@ -70,8 +72,8 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
             layers.append(nn.Linear(prev_size, layer_size))
             layers.append(nn.ReLU())
             prev_size = layer_size
-        layers.append(nn.Linear(prev_size, 1))
-        layers.append(nn.Sigmoid())
+        layers.append(nn.Linear(prev_size, 2))
+        layers.append(nn.Softmax(dim = 1))
         model = nn.Sequential(*layers)
         return model
 
@@ -79,10 +81,10 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
         if self.class_weight == "balanced":
             class_counts = np.bincount(y)
             class_weights = torch.tensor([1 / class_counts[i] for i in range(len(class_counts))], dtype=torch.float)
-            if torch.cuda.is_available():
-                class_weights = class_weights.cuda()
+            if not self.device is None:
+                class_weights = class_weights.to(self.device)
         else:
-            class_weights = None
+            class_weights = torch.tensor([1.0, 1.0])
 
         self.model = self.set_model(X.shape[1])
 
@@ -91,16 +93,16 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
         if type(y) == pd.Series:
             y = y.values
 
-        criterion = nn.BCELoss()
+        criterion = nn.CrossEntropyLoss(weight = class_weights)
         optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate_init)
 
         X_tensor = torch.tensor(X, dtype=torch.float32)
-        y_tensor = torch.tensor(y, dtype=torch.float32).view(-1, 1)
+        y_tensor = torch.tensor(np.stack([1 - y,y]).T, dtype=torch.float32)
 
-        if torch.cuda.is_available():
-            self.model = self.model.cuda()
-            X_tensor = X_tensor.cuda()
-            y_tensor = y_tensor.cuda()
+        if not self.device is None:
+           self.model = self.model.to(self.device)
+           X_tensor = X_tensor.to(self.device)
+           y_tensor = y_tensor.to(self.device)
 
         dataset = TensorDataset(X_tensor, y_tensor)
         dataloader = DataLoader(dataset, batch_size=self.batch_size)
@@ -119,11 +121,11 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
         if type(X) == pd.DataFrame:
             X = X.values
         X_tensor = torch.tensor(X, dtype=torch.float32)
-        if torch.cuda.is_available():
-            X_tensor = X_tensor.cuda()
+        if not self.device is None:
+            X_tensor = X_tensor.to(self.device)
         with torch.no_grad():
-            prob = self.model(X_tensor).cpu().numpy()
-        return np.concatenate([1 - prob, prob], axis=1)
+            prob = self.model(X_tensor).cpu().numpy()       
+        return prob
 
     def predict(self, X):
         if type(X) == pd.DataFrame:
