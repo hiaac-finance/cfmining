@@ -6,6 +6,12 @@ import torch
 import joblib
 from scipy.interpolate import interp1d
 from scipy.stats import gaussian_kde as kde
+import cfmining.algorithms as alg 
+from cfmining.criteria import *
+import copy
+import dice_ml
+from nice import NICE
+import json
 
 VAL_RATIO = 1 / 7
 TEST_RATIO = 3 / 10
@@ -114,8 +120,7 @@ class DeepPipeExplainer:
         X = self.preprocess.transform(X)
         if type(X) == pd.DataFrame:
             X = X.values
-        values = self.explainer.shap_values(torch.Tensor(X))
-        values = np.squeeze(values, 2)
+        values = self.explainer.shap_values(torch.Tensor(X))[:, :, 1]
         # return an explanation object
         return shap.Explanation(values)
 
@@ -124,3 +129,120 @@ class DeepPipeExplainer:
         if type(X) == pd.DataFrame:
             X = X.values
         return self.explainer.shap_values(torch.Tensor(X))
+
+
+class Brutefoce:
+    def __init__(self, action_set, model, criteria, max_changes):
+        self.action_set = action_set
+        self.model = model
+        if criteria == "percentile":
+            perc_calc = PercentileCalculator(action_set = action_set)
+            self.compare = lambda ind : PercentileCriterion(ind, perc_calc)
+        elif criteria == "percentile_changes":
+            perc_calc = PercentileCalculator(action_set = action_set)
+            self.compare = lambda ind : PercentileChangesCriterion(ind, perc_calc)
+        elif criteria == "nom_dom":
+            self.compare = lambda ind : NonDomCriterion(ind)
+            
+        self.max_changes = max_changes
+
+    def fit(self, individual):
+        m = alg.BruteForce(
+            self.action_set,
+            individual,
+            self.model, 
+            max_changes = self.max_changes,
+            compare = self.compare(individual)
+        )
+        m.fit()
+        self.solutions = m.solutions
+        return self
+
+class MAPOCAM:
+    def __init__(self, action_set, model, criteria, max_changes):
+        self.action_set = copy.deepcopy(action_set)
+        for feat in self.action_set:
+            feat.flip_direction = 1
+            feat.update_grid()
+        
+        self.model = model
+        if criteria == "percentile":
+            perc_calc = PercentileCalculator(action_set = action_set)
+            self.compare = lambda ind : PercentileCriterion(ind, perc_calc)
+        elif criteria == "percentile_changes":
+            perc_calc = PercentileCalculator(action_set = action_set)
+            self.compare = lambda ind : PercentileChangesCriterion(ind, perc_calc)
+        elif criteria == "nom_dom":
+            self.compare = lambda ind : NonDomCriterion(ind)
+            
+        self.max_changes = max_changes
+
+    def fit(self, individual):
+        m = alg.MAPOCAM(
+            self.action_set,
+            individual,
+            self.model, 
+            max_changes = self.max_changes,
+            compare = self.compare(individual)
+        )
+        m.fit()
+        self.solutions = m.solutions
+        return self
+
+
+class Dice:
+    def __init__(self, data, Y, model, n_cfs, mutable_features, sparsity_weight = 0.2):
+        self.total_CFs = n_cfs
+        self.sparsity_weight = sparsity_weight
+        self.mutable_features = mutable_features
+        dice_model = dice_ml.Model(
+            model = model,
+            backend = "sklearn",
+            model_type = "classifier"
+        )
+        data_extended = data_extended.copy()
+        data_extended["target"] = Y
+        dice_data = dice_ml.Data(
+            dataframe = data_extended,
+            continuous_features = data.columns.tolist(),
+            outcome_name = "target"
+        )
+        self.exp = dice_ml.Dice(dice_data, dice_model)
+
+
+    def fit(self, individual):
+        dice_exp = self.exp.generate_counterfactuals(
+            individual,
+            total_CFs = self.total_CFs,
+            desired_class = "opposite",
+            sparsity_weight = self.sparsity_weight,
+            features_to_vary= self.mutable_features,
+        )
+        solutions  = json.loads(dice_exp.to_json())["cfs_list"][0]
+        self.solutions = [solution[:-1] for solution in solutions]
+        return self
+    
+
+class Nice:
+    def __init__(self, data, Y, model, cat_features, num_features):
+        predict_fn = lambda x: model.predict_proba(x)
+
+        features = data.columns.tolist()
+        self.cat_features = [features.index(feat) for feat in cat_features]
+        self.num_features = [features.index(feat) for feat in num_features]
+
+        self.exp = NICE(
+            X_train=data.values,
+            predict_fn=predict_fn,
+            y_train=Y,
+            cat_feat=self.cat_features,
+            num_feat=self.num_features,
+            distance_metric='HEOM',
+            num_normalization='minmax',
+            optimization='proximity',
+            justified_cf=True
+        )
+
+    def fit(self, individual):
+        self.solutions = self.exp.explain(individual).tolist()
+        return self
