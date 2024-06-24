@@ -73,7 +73,7 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
             layers.append(nn.ReLU())
             prev_size = layer_size
         layers.append(nn.Linear(prev_size, 2))
-        layers.append(nn.Softmax(dim = 1))
+        #layers.append(nn.Softmax(dim = 1))
         model = nn.Sequential(*layers)
         return model
 
@@ -116,6 +116,9 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
                 loss.backward()
                 optimizer.step()
 
+        # add sigmoid after training to keep outputs in 0 and 1
+        self.model = nn.Sequential(*(list(self.model.children()) + [nn.Sigmoid()]))
+
     def predict_proba(self, X):
         self.model.eval()
         if type(X) == pd.DataFrame:
@@ -124,7 +127,7 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
         if not self.device is None:
             X_tensor = X_tensor.to(self.device)
         with torch.no_grad():
-            prob = self.model(X_tensor).cpu().numpy()       
+            prob = self.model(X_tensor).cpu().numpy() 
         return prob
 
     def predict(self, X):
