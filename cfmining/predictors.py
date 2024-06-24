@@ -172,6 +172,7 @@ class GeneralClassifier_Shap:
         self.importances = np.abs(self.shap_values.values).mean(0)
         if method_predict_max == "shap":
             self.shap_max = self.shap_values.values.max(0)
+            self.idx_sort_shap_max = np.argsort(self.shap_max)[::-1].tolist()
 
         elif method_predict_max == "monotone":
             min_values = X.values.min(0)
@@ -243,6 +244,8 @@ class GeneralClassifier_Shap:
 
     def predict_proba(self, value):
         """Calculates probability of achieving desired classification."""
+        if isinstance(value, pd.DataFrame):
+            value = value.values.flatten()
         return self._predict_proba(tuple(value))
 
     def _predict_outlier(self, value):
@@ -308,8 +311,7 @@ class GeneralClassifier_Shap:
         prob = self.predict_proba(value)
         if n_changes is not None:
             # get index of n_changes most important features
-            open_vars_big = np.argsort(self.shap_max)[::-1].tolist()
-            open_vars_big = [i for i in open_vars_big if i in open_vars]
+            open_vars_big = [i for i in self.idx_sort_shap_max if i in open_vars]
             open_vars_big = open_vars_big[:n_changes]
             prob = (
                 prob

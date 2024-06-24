@@ -786,4 +786,5 @@ class MAPOFCEM:
             _, call = self.calls.popitem()
             self.find_candidates(*call)
 
+        self.solutions = [s.tolist() for s in self.solutions]
         return self
