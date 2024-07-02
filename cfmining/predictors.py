@@ -283,8 +283,7 @@ class GeneralClassifier_Shap:
             prob = self.predict_proba(value)
 
             if n_changes is not None:
-                open_vars_big = np.argsort(self.shap_max)[::-1].tolist()
-                open_vars_big = [i for i in open_vars_big if i in open_vars]
+                open_vars_big = [i for i in self.idx_sort_shap_max if i in open_vars]
                 open_vars_big = open_vars_big[:n_changes]
                 prob = (
                     prob
