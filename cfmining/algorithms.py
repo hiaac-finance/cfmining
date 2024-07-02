@@ -619,7 +619,8 @@ class MAPOFCEM:
         self.action_set = action_set
         self.clf = classifier
         self.outlier_percentile = outlier_percentile
-        self.clf.outlier_clf.percentile = outlier_percentile
+        if hasattr(self.clf.outlier_clf, "percentile"):
+            self.clf.outlier_clf.percentile = outlier_percentile
         self.names = list(action_set.df["name"])
         self.d = len(self.names)
         self.mutable_features = [
@@ -717,9 +718,7 @@ class MAPOFCEM:
             if new_changes >= self.max_changes:
                 continue
 
-            open_vars = np.append(self.mutable_features, self.sequence[new_size:])
-            # remove repeated features
-            open_vars = np.unique(open_vars)
+            open_vars = [x for x in self.sequence[new_size:] if x in self.mutable_features]
 
             # Calculate max probability of solution
             max_prob = 1
