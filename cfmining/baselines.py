@@ -83,7 +83,7 @@ class MAPOCAM:
         elif criteria == "percentile_changes":
             perc_calc = PercentileCalculator(action_set=action_set)
             self.compare = lambda ind: PercentileChangesCriterion(ind, perc_calc)
-        elif criteria == "nom_dom":
+        elif criteria == "non_dom":
             self.compare = lambda ind: NonDomCriterion(ind)
 
         self.max_changes = max_changes
