@@ -1,6 +1,9 @@
+import os
 import numpy as np
 import pandas as pd
 from ast import literal_eval
+from tqdm import tqdm
+import time
 import joblib
 import sys
 
@@ -55,12 +58,14 @@ def run_experiments(
 
 
 def summarize_results(results, dataset, outlier_percentile=0.05):
-    X_train, _, _, _ = get_data_model(dataset)
+    X_train, _, _, _, _ = get_data_model(dataset)
     outlier_detection = joblib.load(f"../models/{dataset}/IsolationForest_test.pkl")
     outlier_detection.percentile = outlier_percentile
-    perc_calc = PercentileCalculator(X=X_train)
-    results["individual"] = results["individual"].apply(literal_eval)
-    results["solutions"] = results["solutions"].apply(literal_eval)
+    perc_calc = PercentileCalculator(X=X_train.astype(np.float64))
+    # verify if "individual" and "solutions" are strings
+    if type(results["individual"].iloc[0]) == str:
+        results["individual"] = results["individual"].apply(literal_eval)
+        results["solutions"] = results["solutions"].apply(literal_eval)
     results_df = []
     costs = []
     n_changes = []
@@ -81,10 +86,13 @@ def summarize_results(results, dataset, outlier_percentile=0.05):
                     "diversity" : None,
                     "outlier": None,
                     "outliers_score": None,
+                    "n_solutions" : 0,
+                    "time" : results["time"].iloc[i]
                 }
             )
             continue
-
+        
+        #print([percentile_criteria.f(s) for s in solutions])
         costs = np.mean([percentile_criteria.f(s) for s in solutions])
         n_changes = []
         for s in solutions:
@@ -110,7 +118,9 @@ def summarize_results(results, dataset, outlier_percentile=0.05):
                 "n_changes": n_changes,
                 "outlier": outliers,
                 "outliers_score": outliers_score,
-                "diversity" : diversity
+                "diversity" : diversity,
+                "n_solutions" : len(solutions),
+                "time" : results["time"].iloc[i]
             }
         )
 
