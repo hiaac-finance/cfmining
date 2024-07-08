@@ -76,6 +76,10 @@ def get_data_model(dataset, model_name="LGBMClassifier"):
     denied_individ = model.predict(X_test) == 0
     individuals = X_test.iloc[denied_individ].reset_index(drop=True)
 
+    if dataset == "taiwan":
+        X_train = X_train.astype(int)
+        individuals = individuals.astype(int)
+
     return X_train, Y_train, model, outlier_detection, individuals
 
 
