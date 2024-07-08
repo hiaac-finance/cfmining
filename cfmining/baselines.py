@@ -18,7 +18,7 @@ class Bruteforce:
         Action set for searching counterfactuals
     model : GeneralClassifier
         Classifier with methods for predicting probability and feature importance
-    criteria : string in ["percentile", "percentile_changes", "nom_dom"]
+    criteria : string in ["percentile", "percentile_change", "non_dom"]
         Criteria for comparing multi-objective solutions
     max_changes : int
         Maximum number of changes to consider counterfactuals
@@ -30,10 +30,10 @@ class Bruteforce:
         if criteria == "percentile":
             perc_calc = PercentileCalculator(action_set=action_set)
             self.compare = lambda ind: PercentileCriterion(ind, perc_calc)
-        elif criteria == "percentile_changes":
+        elif criteria == "percentile_change":
             perc_calc = PercentileCalculator(action_set=action_set)
             self.compare = lambda ind: PercentileChangesCriterion(ind, perc_calc)
-        elif criteria == "nom_dom":
+        elif criteria == "non_dom":
             self.compare = lambda ind: NonDomCriterion(ind)
 
         self.max_changes = max_changes
@@ -64,7 +64,7 @@ class MAPOCAM:
         Action set for searching counterfactuals
     model : GeneralClassifier
         Classifier with methods for predicting probability and feature importance
-    criteria : string in ["percentile", "percentile_changes", "nom_dom"]
+    criteria : string in ["percentile", "percentile_change", "non_dom"]
         Criteria for comparing multi-objective solutions
     max_changes : int
         Maximum number of changes to consider counterfactuals
@@ -80,7 +80,7 @@ class MAPOCAM:
         if criteria == "percentile":
             perc_calc = PercentileCalculator(action_set=action_set)
             self.compare = lambda ind: PercentileCriterion(ind, perc_calc)
-        elif criteria == "percentile_changes":
+        elif criteria == "percentile_change":
             perc_calc = PercentileCalculator(action_set=action_set)
             self.compare = lambda ind: PercentileChangesCriterion(ind, perc_calc)
         elif criteria == "non_dom":
