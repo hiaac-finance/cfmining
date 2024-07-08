@@ -85,9 +85,9 @@ def get_data_model(dataset, model_name="LGBMClassifier"):
 
 def diversity_metric(solutions):
     """Measure the diversity metric of solutions."""
-    l1_dist_matrix = np.abs(solutions[:, None] - solutions[None, :])
-    print(l1_dist_matrix.shape)
-    l1_dist_matrix += np.eye(len(solutions)) * 1e-4
+    l1_dist_matrix = np.abs(solutions[:, None] - solutions[None, :]).sum(axis=2).astype(np.float64)
+    e = np.eye(len(solutions), dtype=np.float64) * 1e-4
+    l1_dist_matrix += e
     K = 1 / (1 + l1_dist_matrix)
     return np.linalg.det(K)
 
