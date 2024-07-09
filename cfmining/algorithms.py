@@ -6,6 +6,7 @@
 """
 
 import numpy as np
+import time
 from sortedcontainers import SortedDict
 
 from .criteria import NonDomCriterion
@@ -615,6 +616,7 @@ class MAPOFCEM:
         max_changes=3,
         categorical_features=None,
         outlier_percentile=0.05,
+        time_limit = 600
     ):
         self.action_set = action_set
         self.clf = classifier
@@ -650,6 +652,7 @@ class MAPOFCEM:
         self.estimate_prob_max = estimate_prob_max
         self.estimate_outlier = estimate_outlier
         self.categorical_features = categorical_features
+        self.time_limit = time_limit
 
         return
 
@@ -781,7 +784,8 @@ class MAPOFCEM:
         self.calls = SortedDict(
             {(self.clf.predict_proba(self.pivot), 0): [self.pivot.copy(), 0, 0]}
         )
-        while len(self.calls) > 0:
+        start = time.time()
+        while len(self.calls) > 0 and time.time() - start < self.time_limit:
             _, call = self.calls.popitem()
             self.find_candidates(*call)
 
