@@ -140,9 +140,15 @@ def format_df_table(df, agg_column, columns):
         .reset_index()
         .round(3)
     )
+    df_90p = (
+        df.groupby(agg_column)
+        .agg(dict([(c, lambda x: np.nanpercentile(x, 95)) for c in columns]))
+        .reset_index()
+        .round(3)
+    )
 
     for col in columns:
         df_mean[col] = (
-            df_mean[col].astype("str") + " (+-" + df_std[col].astype("str") + ")"
+            df_mean[col].astype("str") + " (+-" + df_std[col].astype("str") + ") | " + df_90p[col].astype("str") 
         )
     return df_mean
