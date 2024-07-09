@@ -13,6 +13,9 @@ VAL_RATIO = 1 / 7
 TEST_RATIO = 3 / 10
 SEED = 0
 
+class FakeOutlierDetection:
+    def predict(self, X):
+        return [1]
 
 class OutlierWrap:
     def __init__(self, X, outlier_clf, percentile):
