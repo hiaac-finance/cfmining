@@ -426,21 +426,25 @@ class _ActionElement(object):
         if self._variable_type == int:
             step = np.ceil(step)
 
-        # generate grid
-        try:
-            if self.step_type == "splits":
-                if self._variable_type is float:
-                    grid = np.unique(np.concatenate(([start], self.splits, [stop])))
-                elif self._variable_type is int:
-                    grid = np.unique(
-                        np.concatenate(([start], np.floor(self.splits), [stop]))
-                    )
-            elif self.step_type == "percentile":
-                grid = np.arange(start, stop + step, step)
-            else:
-                grid = np.arange(start, stop + step, step)
-        except Exception:
-            ipsh()
+        if self.step_type == "splits":
+            if self._variable_type is float:
+                grid = np.unique(np.concatenate(([start], self.splits, [stop])))
+            elif self._variable_type is int:
+                grid = np.unique(
+                    np.concatenate(([start], np.floor(self.splits), [stop]))
+                )
+        elif self.step_type == "percentile":
+            start = self.bounds.qlb
+            stop = self.bounds.qub
+            grid = np.arange(start, stop, step) / 100
+            interpolator_percentile = interp1d(np.linspace(0, 1, len(self._values)), self._values)
+            grid = interpolator_percentile(grid)
+            if self._variable_type == int:
+                grid = grid.astype("int")
+            grid = np.unique(grid)
+            
+        else:
+            grid = np.arange(start, stop + step, step)
 
         # cast grid
         if self._variable_type == int:
@@ -679,9 +683,9 @@ class ActionSet(object):
                 name=n,
                 values=X[:, j],
                 step_type=default_step_type,
-                step_size = default_step_size,
+                step_size=default_step_size,
                 bounds=custom_bounds.get(n, default_bounds),
-                mutable = n in self.mutable_features
+                mutable=n in self.mutable_features,
             )
             indices[n] = j
 
