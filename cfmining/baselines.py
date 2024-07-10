@@ -5,7 +5,12 @@ import dice_ml
 from nice import NICE
 import json
 import cfmining.algorithms as alg
-from cfmining.criteria import PercentileCalculator, PercentileCriterion, PercentileChangesCriterion, NonDomCriterion
+from cfmining.criteria import (
+    PercentileCalculator,
+    PercentileCriterion,
+    PercentileChangesCriterion,
+    NonDomCriterion,
+)
 
 
 class Bruteforce:
@@ -124,19 +129,46 @@ class Dice:
         Parameter, weight for sparsity in optimization problem
     """
 
-    def __init__(self, data, Y, model, n_cfs, mutable_features, sparsity_weight=0.2):
+    def __init__(
+        self,
+        data,
+        Y,
+        model,
+        n_cfs,
+        mutable_features,
+        continuous_features,
+        sparsity_weight=0.2,
+    ):
         self.total_CFs = n_cfs
         self.sparsity_weight = sparsity_weight
         self.mutable_features = mutable_features
         self.features = data.columns.tolist()
+
+        class ModelWrap:
+            def __init__(self, model):
+                self.model = model
+
+            def predict_proba(self, x):
+                object_columns = x.select_dtypes(include=["object"]).columns.tolist()
+
+                def convert(x):
+                    if isinstance(x, str):
+                        x = int(x) if x.isdigit() else float(x)
+                    return x
+
+                for col in object_columns:
+                    x[col] = x[col].apply(convert)
+
+                return self.model.predict_proba(x)
+
         dice_model = dice_ml.Model(
-            model=model, backend="sklearn", model_type="classifier"
+            model=ModelWrap(model), backend="sklearn", model_type="classifier"
         )
         data_extended = data.copy()
         data_extended["target"] = Y
         dice_data = dice_ml.Data(
             dataframe=data_extended,
-            continuous_features=data.columns.tolist(),
+            continuous_features=continuous_features,
             outcome_name="target",
         )
         self.exp = dice_ml.Dice(dice_data, dice_model)
