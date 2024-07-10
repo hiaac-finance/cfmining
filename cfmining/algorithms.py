@@ -611,12 +611,12 @@ class MAPOFCEM:
         action_set,
         classifier,
         compare="percentile",
-        estimate_prob_max=True,
-        estimate_outlier=False,
+        estimate_prob_max=False,
+        estimate_outlier=True,
         max_changes=3,
         categorical_features=None,
         outlier_percentile=0.05,
-        time_limit = 600
+        time_limit = 180
     ):
         self.action_set = action_set
         self.clf = classifier
