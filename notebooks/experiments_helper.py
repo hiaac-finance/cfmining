@@ -101,7 +101,7 @@ def summarize_results(results, dataset, outlier_percentile=0.05):
             )
             n_changes.append(n_changes_)
         n_changes = np.mean(n_changes)
-        outliers = np.sum(
+        outliers = np.mean(
             [outlier_detection.predict(np.array(s)[None, :]) == -1 for s in solutions]
         )
         outliers_score = np.mean(
