@@ -85,7 +85,7 @@ class PercentileCalculator():
             if action_set is not None:
                 self.action_set = action_set
             elif X is None:
-                from recourse.builder import ActionSet
+                from cfmining.action_set import ActionSet
                 self.action_set = ActionSet(X = X)
                 
             self.names = self.action_set.df['name'].values
