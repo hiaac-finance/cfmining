@@ -74,7 +74,7 @@ class GeneralClassifier:
     def __init__(self, classifier, X=None, y=None, metric=None, threshold=0.5):
         self.clf = classifier
         self.threshold = threshold
-        from eli5.sklearn import PermutationImportance
+        from sklearn.inspection import permutation_importance
         from sklearn.metrics import roc_auc_score, mean_absolute_error
 
         def deviat(clf, X, y):
@@ -84,9 +84,8 @@ class GeneralClassifier:
             else:
                 return metric(y, clf.predict_proba(X)[:, 1])
 
-        perm = PermutationImportance(self.clf, scoring=deviat, n_iter=10).fit(X, y)
-        # perm = PermutationImportance(self.clf, scoring=deviat).fit(X, classifier.predict_proba(X)[:,1])
-        self.importances = abs(perm.feature_importances_)
+        perm = permutation_importance(self.clf, X, y, scoring=deviat, n_repeats=10)
+        self.importances = abs(perm.importances_mean)
 
     @property
     def feat_importance(self):
