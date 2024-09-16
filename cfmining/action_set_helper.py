@@ -157,6 +157,7 @@ def parse_classifier_args(*args, **kwargs):
         w = kwargs["classifier"].coef_
         t = kwargs["classifier"].intercept_
 
+    elif "coefficients" in kwargs:
         w = kwargs.get("coefficients")
         t = kwargs.get("intercept", 0.0)
 

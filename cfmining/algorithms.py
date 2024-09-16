@@ -6,9 +6,15 @@
 """
 
 import numpy as np
+import copy
 from sortedcontainers import SortedDict
 
-from .criteria import NonDomCriterion
+from .criteria import (
+    NonDomCriterion,
+    PercentileCriterion,
+    PercentileChangesCriterion,
+    PercentileCalculator,
+)
 
 
 class MAPOCAM:
@@ -229,6 +235,56 @@ class MAPOCAM:
                     solutions += [solution]
             self.solutions = solutions
 
+        return self
+
+
+class MAPOCAM_SimpleInterface:
+    """Wrapper function for MAPOCAM algorithm, fit expects an individual and can be called multiple times.
+
+
+    Parameters
+    ----------
+    action_set : ActionSet
+        Action set for searching counterfactuals
+    model : GeneralClassifier
+        Classifier with methods for predicting probability and feature importance
+    criteria : string in ["percentile", "percentile_change", "non_dom"]
+        Criteria for comparing multi-objective solutions
+    max_changes : int
+        Maximum number of changes to consider counterfactuals
+    """
+
+    def __init__(self, action_set, model, criteria, max_changes):
+        self.action_set = copy.deepcopy(action_set)
+        for feat in self.action_set:
+            feat.flip_direction = 1
+            feat.update_grid()
+
+        self.model = model
+        if criteria == "percentile":
+            perc_calc = PercentileCalculator(action_set=action_set)
+            self.compare = lambda ind: PercentileCriterion(ind, perc_calc)
+        elif criteria == "percentile_change":
+            perc_calc = PercentileCalculator(action_set=action_set)
+            self.compare = lambda ind: PercentileChangesCriterion(ind, perc_calc)
+        elif criteria == "non_dom":
+            self.compare = lambda ind: NonDomCriterion(ind)
+
+        self.max_changes = max_changes
+
+    def fit(self, individual):
+        m = MAPOCAM(
+            self.action_set,
+            individual,
+            self.model,
+            max_changes=self.max_changes,
+            compare=self.compare(individual),
+        )
+        m.fit()
+        self.solutions = m.solutions
+        if len(self.solutions) > 0:
+            if isinstance(self.solutions[0], np.ndarray):
+                self.solutions = [s.tolist() for s in self.solutions]
         return self
 
 

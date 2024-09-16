@@ -76,6 +76,7 @@ try:
         "lightgbm",
         "mip",
         "graphviz",
+        "xxhash"
     ]
 except:
     from distutils.core import setup
