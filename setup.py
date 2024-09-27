@@ -79,7 +79,10 @@ try:
         "xxhash",
         "prettytable",
         "seaborn",
-        "matplotlib"
+        "matplotlib",
+        "scikit-learn",
+        "pyomo",
+        "cplex"
     ]
 except:
     from distutils.core import setup
