@@ -76,7 +76,10 @@ try:
         "lightgbm",
         "mip",
         "graphviz",
-        "xxhash"
+        "xxhash",
+        "prettytable",
+        "seaborn",
+        "matplotlib"
     ]
 except:
     from distutils.core import setup
