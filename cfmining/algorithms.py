@@ -704,13 +704,12 @@ class MAPOFCEM:
 
                 outlier = self.clf.predict_outlier(new_solution) == -1
 
-                if outlier:
-                    self.outlier_detection_counter += 1
-                else:
+                if not outlier:
                     self.update_solutions(new_solution)
-
-                # If is a feasible solution or an outlier, return
-                return
+                    return
+                else:    
+                    self.outlier_detection_counter += 1
+                    #continue
 
             new_size = size + 1
             if new_size >= self.pivot.size:
