@@ -9,7 +9,8 @@ import pandas as pd
 import sklearn
 import shap
 from functools import lru_cache
-
+from sklearn.inspection import permutation_importance
+from sklearn.metrics import roc_auc_score
 
 def mean_plus_dev_error(y_ref, y_pred, dev=2):
     err = abs(y_ref - y_pred)
@@ -77,19 +78,17 @@ class GeneralClassifier:
     def __init__(self, classifier, X=None, y=None, metric=None, threshold=0.5):
         self.clf = classifier
         self.threshold = threshold
-        from eli5.sklearn import PermutationImportance
-        from sklearn.metrics import roc_auc_score, mean_absolute_error
 
         def deviat(clf, X, y):
             if metric is None:
-                # return mean_absolute_error(y, clf.predict_proba(X)[:,1])
                 return roc_auc_score(y, clf.predict_proba(X)[:, 1])
             else:
                 return metric(y, clf.predict_proba(X)[:, 1])
 
-        perm = PermutationImportance(self.clf, scoring=deviat, n_iter=10).fit(X, y)
-        # perm = PermutationImportance(self.clf, scoring=deviat).fit(X, classifier.predict_proba(X)[:,1])
-        self.importances = abs(perm.feature_importances_)
+        perm = permutation_importance(
+            self.clf, X, y, scoring = deviat, n_repeats = 10
+        )        
+        self.importances = abs(perm.importances_mean)
 
     @property
     def feat_importance(self):
@@ -117,15 +116,22 @@ class GeneralClassifier_Shap:
 
     Parameters
     ----------
-
     classifier : sklearn type classifer,
         General classifier with predict_proba method.
-    X : numpy array,
+    outlier_classifier : sklearn type classifer,
+        General classifier with predict, return 1 if the sample is an outlier.
+    X : pandas DataFrame,
         Input Samples
-    shap_explainer : str,
-        Method to calculate the SHAP values, can be ['permutation', 'tree']
-    threshold : float,
-        User defined threshold for the classification.
+    categorical_features : list, optional
+        List of features names that are categorical, by default []
+    method_predict_max : str, optional
+        Must be in ["shap", "monotone"], by default "shap"
+    shap_explainer : str, optional
+        Shap explainer utilized, must be in ["permutation", "tree", "custom"], by default "permutation"
+    explainer : object that return shap explanations , optional
+        Explainer to be utilized if "shap_explainer"="custom" , by default None
+    threshold : float, optional
+        Threhsold utilized for prediction, by default 0.5
     """
 
     def __init__(
@@ -141,14 +147,13 @@ class GeneralClassifier_Shap:
     ):
         self.clf = classifier
         self.outlier_clf = outlier_classifier
-        self.threshold = threshold
         self.feature_names = X.columns.tolist()
-        self.n_features = X.shape[1]
         self.categorical_features = categorical_features
-        self.use_predict_max = True
         self.method_predict_max = method_predict_max
+        self.threshold = threshold
+        self.use_predict_max = True
 
-        X100 = X.sample(1000 if len(X) > 1000 else 100)
+        X100 = X.sample(1000 if len(X) > 1000 else min(100, X.shape[0]))
         if shap_explainer == "permutation":
             predict_proba = lambda x: self.clf.predict_proba(x)[:, 1]
             self.explainer = shap.Explainer(predict_proba, X100)
@@ -168,8 +173,9 @@ class GeneralClassifier_Shap:
             self.explainer = explainer
 
         self.shap_values = self.explainer(X100)
-        # self.calculate_categorical_importances(X)
         self.importances = np.abs(self.shap_values.values).mean(0)
+        self.calculate_categorical_importances(X100)
+
         if method_predict_max == "shap":
             self.shap_max = self.shap_values.values.max(0)
             self.idx_sort_shap_max = np.argsort(self.shap_max)[::-1].tolist()
@@ -180,7 +186,7 @@ class GeneralClassifier_Shap:
 
             sample = X.iloc[[0]].values
             self.action_max = []
-            for i in range(self.n_features):
+            for i in range(X.shape[1]):
                 sample_min_value = sample.copy()
                 sample_min_value[0, i] = min_values[i]
                 prob_min_value = self.clf.predict_proba(sample_min_value)[0, 1]
@@ -219,13 +225,26 @@ class GeneralClassifier_Shap:
 
         self.cat_importances = cat_importances
 
-    def update_categorical_grid(self, col, grid):
-        """Update the grid of categorical feature values for a specific feature."""
-        imp = self.cat_importances[col]
-        value = [imp[v] if v in imp else -np.inf for v in grid]
-        new_grid = grid.copy()
-        new_grid = [x for _, x in sorted(zip(value, new_grid))]
-        return new_grid
+    def update_categorical_grid(self, grid):
+        """Update the grid of categorical feature values.
+
+        Parameters
+        ----------
+        grid : dict,
+            Dictionary with the grid of actions (features).
+
+        """
+        for col in self.categorical_features:
+            imp = self.cat_importances[col]
+            # check if there is value not in imp
+            for v in grid[col]:
+                if v not in imp:
+                    imp[v] = -np.inf
+
+            imp = list(imp.items())
+            imp = sorted(imp, key=lambda x: x[1], reverse=True)
+            grid[col] = [x for x, _ in imp]
+        return grid
 
     def predict(self, value):
         """Predicts if the probability is higher than threshold"""
@@ -236,10 +255,7 @@ class GeneralClassifier_Shap:
 
     def _predict_proba(self, value):
         """Cached function to calculate the probability."""
-        value = pd.DataFrame(
-            data = [value],
-            columns = self.feature_names
-        )
+        value = pd.DataFrame(data=[value], columns=self.feature_names)
         return self.clf.predict_proba(value)[0, 1]
 
     def predict_proba(self, value):
@@ -259,10 +275,7 @@ class GeneralClassifier_Shap:
 
     def shap_explanation(self, value):
         """Calculates the shap explanation for a specific sample."""
-        value = pd.DataFrame(
-            data = [value],
-            columns = self.feature_names
-        )
+        value = pd.DataFrame(data=[value], columns=self.feature_names)
         return self.explainer(value)[0].values
 
     def clear_cache(self):
@@ -302,8 +315,8 @@ class GeneralClassifier_Shap:
         elif self.method_predict_max == "monotone":
             value_copy = value.copy()
             for i in open_vars:
-                value_copy.iloc[0, i] = self.action_max[i]
-            return self.clf.predict_proba(value_copy)[:, 1]
+                value_copy[i] = self.action_max[i]
+            return self.predict_proba(value_copy)
 
     def estimate_predict_max(self, value, open_vars, n_changes=None):
         """Estimates the maximal probability of a partial sample."""

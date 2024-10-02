@@ -87,27 +87,10 @@ class MAPOCAM:
             [action_set[feat_name].flip_direction for feat_name in self.names]
         )
 
-        action_grid = action_set.feasible_grid(
+        self.feas_grid = action_set.feasible_grid(
             pivot, return_percentiles=False, return_actions=False, return_immutable=True
         )
-        self.feas_grid = {
-            feat_name: action_grid[feat_name][::flip_dir]
-            for feat_name, flip_dir in zip(self.names, self.feat_direction)
-        }
-        self.max_action = np.array(
-            [
-                (
-                    max(self.feas_grid[feat_name])
-                    if flip_dir == 1
-                    else min(self.feas_grid[feat_name])
-                )
-                for feat_name, flip_dir in zip(self.names, self.feat_direction)
-            ]
-        )
 
-        # delta_action = np.array([max(self.feas_grid[feat_name]) - min(self.feas_grid[feat_name])
-        #                            for feat_name, flip_dir in zip(self.names, self.feat_direction)])
-        # action_range = abs(self.max_action - self.pivot)/(delta_action+(delta_action==0))
         self.sequence = np.argsort(classifier.feat_importance)[::-1]
         # self.sequence = np.argsort(classifier.feat_importance*action_range)[::-1]
 
@@ -182,14 +165,6 @@ class MAPOCAM:
 
             if new_changes >= self.max_changes:
                 continue
-
-            if self.clf.monotone:
-                max_sol = self.max_action.copy()
-                max_sol[self.sequence[:new_size]] = new_solution[
-                    self.sequence[:new_size]
-                ]
-                if self.clf.predict_proba(max_sol) < self.clf.threshold - self.eps:
-                    continue
 
             if hasattr(self.clf, "predict_max") and self.clf.use_predict_max:
                 max_prob = self.clf.predict_max(new_solution, self.sequence[:new_size])
@@ -384,13 +359,6 @@ class ActionsEnumerator:
         ## stop search if achieved maximal changes
         if changes >= self.max_changes:
             return False
-
-        ## stop search if constraint is never going to be satisfied
-        if self.clf.monotone:
-            max_sol = self.max_action.copy()
-            max_sol[self.sequence[:size]] = solution[self.sequence[:size]]
-            if not self.clf.predict(max_sol):
-                return False
 
         next_idx = self.sequence[size]
         next_name = self.names[next_idx]
@@ -616,13 +584,17 @@ class MAPOFCEM:
         max_changes=3,
         categorical_features=None,
         outlier_percentile=0.05,
-        time_limit = 180
+        time_limit=180,
     ):
         self.action_set = action_set
         self.clf = classifier
         self.outlier_percentile = outlier_percentile
         if hasattr(self.clf.outlier_clf, "percentile"):
             self.clf.outlier_clf.percentile = outlier_percentile
+        if categorical_features is None:
+            categorical_features = []
+        self.categorical_features = categorical_features
+
         self.names = list(action_set.df["name"])
         self.d = len(self.names)
         self.mutable_features = [
@@ -639,7 +611,7 @@ class MAPOFCEM:
                     cfe, self.perc_calc
                 )
             elif compare == "non_dom":
-                self.compare_call = lambda cfe : NonDomCriterion(cfe)
+                self.compare_call = lambda cfe: NonDomCriterion(cfe)
             else:
                 raise ValueError("compare must be a valid string")
         else:
@@ -651,10 +623,7 @@ class MAPOFCEM:
         # maybe remove later
         self.estimate_prob_max = estimate_prob_max
         self.estimate_outlier = estimate_outlier
-        self.categorical_features = categorical_features
         self.time_limit = time_limit
-
-        return
 
     def update_solutions(self, solution):
         # remove dominated calls
@@ -693,9 +662,10 @@ class MAPOFCEM:
             new_solution[next_idx] = value
 
             # If new solution is worse than any previous, stop
-            for old_sol in self.solutions:
-                if self.compare.greater_than(new_solution, old_sol):
-                    return
+            if not next_name in self.categorical_features:
+                for old_sol in self.solutions:
+                    if self.compare.greater_than(new_solution, old_sol):
+                        return
 
             # If is a solution, save it
             new_proba = self.clf.predict_proba(new_solution)
@@ -704,12 +674,12 @@ class MAPOFCEM:
 
                 outlier = self.clf.predict_outlier(new_solution) == -1
 
-                if not outlier:
+                if not outlier and not next_name in self.categorical_features:
                     self.update_solutions(new_solution)
                     return
-                else:    
+                else:
                     self.outlier_detection_counter += 1
-                    #continue
+                    # continue
 
             new_size = size + 1
             if new_size >= self.pivot.size:
@@ -720,7 +690,9 @@ class MAPOFCEM:
             if new_changes >= self.max_changes:
                 continue
 
-            open_vars = [x for x in self.sequence[new_size:] if x in self.mutable_features]
+            open_vars = [
+                x for x in self.sequence[new_size:] if x in self.mutable_features
+            ]
 
             # Calculate max probability of solution
             max_prob = 1

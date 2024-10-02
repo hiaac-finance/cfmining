@@ -44,6 +44,7 @@ class OutlierWrap:
         self._threshold = self.percentile_interp(100 * (1 - value))
 
     def predict(self, X):
+        """Return -1 for outlier and 1 for inliers."""
         pred = self.outlier_clf.predict(X)
         pred = np.where(pred < self._threshold, 1, -1)
         return pred
@@ -55,18 +56,18 @@ class OutlierWrap:
 
 def get_data_model(dataset, model_name="LGBMClassifier"):
     """Helper function to load the dataset and model."""
-    if dataset in ["german", "taiwan"]:
+    if dataset in ["german", "taiwan", "german_cat", "taiwan_cat"]:
         df = pd.read_csv(f"../data/{dataset}.csv")
     elif dataset == "german_small":
         df = pd.read_csv(f"../data/german.csv")
-    if dataset == "german":
+    if dataset == "german" or dataset == "german_cat":
         X = df.drop("GoodCustomer", axis=1)
         Y = df["GoodCustomer"]
     if dataset == "german_small":
         X = df.drop("GoodCustomer", axis=1)
         X = X[["LoanAmount", "LoanDuration", "OwnsHouse", "is_male"]]
         Y = df["GoodCustomer"]
-    elif dataset == "taiwan":
+    elif dataset == "taiwan" or dataset == "taiwan_cat":
         X = df.drop("NoDefaultNextMonth", axis=1)
         Y = df["NoDefaultNextMonth"]
 
