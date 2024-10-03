@@ -86,6 +86,10 @@ class MAPOCAM:
         self.feat_direction = np.array(
             [action_set[feat_name].flip_direction for feat_name in self.names]
         )
+        self.mutable_features = [
+            i for (i, name) in enumerate(self.names) if self.action_set[name].mutable
+        ]
+
 
         self.feas_grid = action_set.feasible_grid(
             pivot, return_percentiles=False, return_actions=False, return_immutable=True
@@ -166,8 +170,12 @@ class MAPOCAM:
             if new_changes >= self.max_changes:
                 continue
 
-            if hasattr(self.clf, "predict_max") and self.clf.use_predict_max:
-                max_prob = self.clf.predict_max(new_solution, self.sequence[:new_size])
+            if hasattr(self.clf, "predict_proba_max") and self.clf.use_proba_max:
+                open_vars = [
+                    x for x in self.sequence[new_size:] if x in self.mutable_features
+                ]
+                max_prob = self.clf.predict_proba_max(new_solution, open_vars)
+
                 if max_prob < self.clf.threshold:
                     continue
 
@@ -579,7 +587,7 @@ class MAPOFCEM:
         action_set,
         classifier,
         compare="percentile",
-        estimate_prob_max=False,
+        estimate_proba_max=False,
         estimate_outlier=True,
         max_changes=3,
         categorical_features=None,
@@ -621,7 +629,7 @@ class MAPOFCEM:
         self.max_changes = max_changes
 
         # maybe remove later
-        self.estimate_prob_max = estimate_prob_max
+        self.estimate_proba_max = estimate_proba_max
         self.estimate_outlier = estimate_outlier
         self.time_limit = time_limit
 
@@ -696,13 +704,13 @@ class MAPOFCEM:
 
             # Calculate max probability of solution
             max_prob = 1
-            if hasattr(self.clf, "predict_max"):
-                if self.estimate_prob_max:
+            if hasattr(self.clf, "predict_proba_max"):
+                if self.estimate_proba_max:
                     max_prob = self.clf.estimate_predict_max(
                         new_solution, open_vars, self.max_changes - new_changes
                     )
                 else:
-                    max_prob = self.clf.predict_max(
+                    max_prob = self.clf.predict_proba_max(
                         new_solution, open_vars, self.max_changes - new_changes
                     )
 

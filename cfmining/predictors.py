@@ -12,6 +12,7 @@ from functools import lru_cache
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import roc_auc_score
 
+
 def mean_plus_dev_error(y_ref, y_pred, dev=2):
     err = abs(y_ref - y_pred)
     return np.mean(err) + dev * np.std(err)
@@ -75,20 +76,27 @@ class GeneralClassifier:
         User defined threshold for the classification.
     """
 
-    def __init__(self, classifier, X=None, y=None, metric=None, threshold=0.5):
+    def __init__(self, classifier, outlier_clf=None, X=None, threshold=0.5):
         self.clf = classifier
         self.threshold = threshold
+        self.use_proba_max = True
+        self.feature_names = X.columns.tolist()
 
-        def deviat(clf, X, y):
-            if metric is None:
-                return roc_auc_score(y, clf.predict_proba(X)[:, 1])
-            else:
-                return metric(y, clf.predict_proba(X)[:, 1])
+        # calculate importances
+        X100 = X.sample(1000 if len(X) > 1000 else min(100, X.shape[0]))
 
-        perm = permutation_importance(
-            self.clf, X, y, scoring = deviat, n_repeats = 10
-        )        
-        self.importances = abs(perm.importances_mean)
+        def predict_proba_aux(x):
+            if type(x) != pd.DataFrame:
+                if x.ndim == 1:
+                    x = x.reshape(1, -1)
+                x = pd.DataFrame(data=x, columns=X.columns)
+            return self.clf.predict_proba(x)[:, 1]
+
+        explainer = shap.Explainer(predict_proba_aux, X100)
+        shap_values = explainer(X100)
+        self.importances = np.abs(shap_values.values).mean(0)
+
+        self.outlier_clf = outlier_clf
 
     @property
     def feat_importance(self):
@@ -107,7 +115,76 @@ class GeneralClassifier:
 
     def predict_proba(self, value):
         """Calculates probability of achieving desired classification."""
-        return self.clf.predict_proba([value])[0, 1]
+        if isinstance(value, np.ndarray):
+            value = value.reshape(1, -1)
+            value = pd.DataFrame(data=value, columns=self.feature_names)
+        return self.clf.predict_proba(value)[0, 1]
+
+    def predict_outlier(self, value):
+        """Predicts if the sample is an outlier. (Placeholder)"""
+        if self.outlier_clf is None:
+            return 1
+
+        if value.ndim == 1:
+            value = value.reshape(1, -1)
+        return self.outlier_clf.predict(value)
+
+
+class MonotoneClassifier(GeneralClassifier):
+    """Wrapper to general type of classifer.
+    It estimates the importance of the features and assume the classifier as monotone.
+
+    Parameters
+    ----------
+
+    classifier : sklearn type classifer,
+        General classifier with predict_proba method.
+    outlier_classifier : sklearn type classifer,
+        General classifier with predict, return 1 if the sample is a outlier.
+    X : numpy array,
+        Input Samples
+    threshold : float,
+        User defined threshold for the classification.
+    """
+
+    def __init__(self, classifier, outlier_clf=None, X=None, threshold=0.5):
+        super().__init__(classifier, outlier_clf, X, threshold)
+        self.use_prob_max = True
+
+        # calculate action_max
+        min_values = X.values.min(0)
+        max_values = X.values.max(0)
+        self.action_max = []
+        sample = X.iloc[[0]].values
+        for i in range(X.shape[1]):
+            sample_min_value = sample.copy()
+            sample_min_value[0, i] = min_values[i]
+            sample_min_value = pd.DataFrame(data=sample_min_value, columns=X.columns)
+            prob_min_value = classifier.predict_proba(sample_min_value)[0, 1]
+            sample_max_value = sample.copy()
+            sample_max_value[0, i] = max_values[i]
+            sample_max_value = pd.DataFrame(data=sample_max_value, columns=X.columns)
+            prob_max_value = classifier.predict_proba(sample_max_value)[0, 1]
+
+            self.action_max.append(
+                min_values[i] if prob_min_value > prob_max_value else max_values[i]
+            )
+
+    @property
+    def monotone(self):
+        return True
+
+    def predict_proba_max(self, value, open_vars, n_changes=None):
+        """Calculates probability of achieving desired classification."""
+        assert type(value) == np.ndarray
+        value_copy = value.copy()
+        for i in open_vars:
+            value_copy[i] = self.action_max[i]
+        if value_copy.ndim == 1:
+            value_copy = value_copy.reshape(1, -1)
+        value_copy = pd.DataFrame(data=value_copy, columns=self.feature_names)
+
+        return self.clf.predict_proba(value_copy)[0, 1]
 
 
 class GeneralClassifier_Shap:
@@ -189,9 +266,15 @@ class GeneralClassifier_Shap:
             for i in range(X.shape[1]):
                 sample_min_value = sample.copy()
                 sample_min_value[0, i] = min_values[i]
+                sample_min_value = pd.DataFrame(
+                    data=sample_min_value, columns=self.feature_names
+                )
                 prob_min_value = self.clf.predict_proba(sample_min_value)[0, 1]
                 sample_max_value = sample.copy()
                 sample_max_value[0, i] = max_values[i]
+                sample_max_value = pd.DataFrame(
+                    data=sample_max_value, columns=self.feature_names
+                )
                 prob_max_value = self.clf.predict_proba(sample_max_value)[0, 1]
 
                 if prob_min_value > prob_max_value:
@@ -341,30 +424,6 @@ class GeneralClassifier_Shap:
             prob = self.predict_max(value, open_vars, n_changes)
 
         return prob
-
-
-class MonotoneClassifier(GeneralClassifier):
-    """Wrapper to general type of classifer.
-    It estimates the importance of the features and assume the classifier as monotone.
-
-    Parameters
-    ----------
-
-    classifier : sklearn type classifer,
-        General classifier with predict_proba method.
-    X : numpy array,
-        Input Samples
-    y : numpy array,
-        Output Samples.
-    metric : function,
-        User specific metric function to estimate importance.
-    threshold : float,
-        User defined threshold for the classification.
-    """
-
-    @property
-    def monotone(self):
-        return True
 
 
 class LinearClassifier:
@@ -586,123 +645,3 @@ class MonotoneTree(TreeClassifier):
     def monotone(self):
         return True
 
-
-"""
-class TreeClassifier(GeneralClassifier):
-    def __init__(self, classifier, individual, action_set, 
-                 X=None, y=None, metric=None, threshold=0.5,
-                 use_predict_max=False, general=None):
-        from actionsenum.mip_algorithms import recursive_tree_
- 
-        self.clf = classifier
-        self.threshold = threshold
-
-        self.names = list(action_set.df['name'])
-        grid_ = action_set.feasible_grid(individual, return_actions=False, return_percentiles=False, return_immutable=True)
-        leaves = [recursive_tree_(tree_, self.names, grid_, 0, tree_name=i)
-                  for i, tree_ in enumerate(classifier.estimators_)]
-
-        for leaves_tree in leaves:
-            for leaf in leaves_tree:
-                leaf['variables'] = {var:set(leaf['variables'][var]) for var in leaf['variables']}
-                leaf['used_feat'] = list(leaf['used_feat'])[::-1]
-                leaf['used_idx'] = [self.names.index(name) for name in leaf['used_feat']]
-
-        self.leaves = leaves
-
-        if general is not None:
-            self.importances = general.importances
-        else:
-            self.importances = classifier.feature_importances_
-        self.use_predict_max = use_predict_max
-
-    def predict_proba(self, value):
-        n_estimators = len(self.leaves)
-        prediction = 0
-        for leaves_tree in self.leaves:
-            for leaf in leaves_tree:
-                active_leaf = True
-                for v, name in zip(value[leaf['used_idx']], leaf['used_feat']):
-                    if v not in leaf['variables'][name]:
-                        active_leaf=False
-                        break
-                if active_leaf:
-                    prediction+=leaf['prediction']
-                    break
-        return prediction/n_estimators
-
-    def predict_max(self, value, fixed_vars):
-        n_estimators = len(self.leaves)
-        prediction = 0
-        for leaves_tree in self.leaves:
-            prob = 0
-            for leaf in leaves_tree:
-                active_leaf = True
-                for v, idx, name in zip(value[leaf['used_idx']], leaf['used_idx'], leaf['used_feat']):
-                    if v not in leaf['variables'][name] and idx in fixed_vars:
-                        active_leaf=False
-                        break
-                if active_leaf:
-                    prob = max(prob, leaf['prediction'])
-            prediction+=prob
-        #print(fixed_vars, prediction/n_estimators)
-        return prediction/n_estimators
-
-
-class TreeClassifier2(GeneralClassifier):
-    def __init__(self, classifier,
-                 X=None, y=None, metric=None, threshold=0.5,
-                 use_predict_max=False):
- 
-        super().__init__(classifier, X, y, metric, threshold)
-        self.clf = classifier
-        self.threshold = threshold
-        self.use_predict_max = use_predict_max
-
-    def fit(self, individual, action_set):
-        from actionsenum.mip_algorithms import recursive_tree_
-        self.names = list(action_set.df['name'])
-        grid_ = action_set.feasible_grid(individual, return_actions=False, return_percentiles=False, return_immutable=True)
-        leaves = [recursive_tree_(tree_, self.names, grid_, 0, tree_name=i)
-                  for i, tree_ in enumerate(self.clf.estimators_)]
-
-        for leaves_tree in leaves:
-            for leaf in leaves_tree:
-                leaf['variables'] = {var:set(leaf['variables'][var]) for var in leaf['variables']}
-                leaf['used_feat'] = set(leaf['used_feat'])
-                leaf['used_idx'] = [self.names.index(name) for name in leaf['used_feat']]
-
-        self.leaves = leaves
-
-    def predict_proba(self, value):
-        n_estimators = len(self.leaves)
-        prediction = 0
-        for leaves_tree in self.leaves:
-            for leaf in leaves_tree:
-                active_leaf = True
-                for v, name in zip(value[leaf['used_idx']], leaf['used_feat']):
-                    if v not in leaf['variables'][name]:
-                        active_leaf=False
-                        break
-                if active_leaf:
-                    prediction+=leaf['prediction']
-                    break
-        return prediction/n_estimators
-
-    def predict_max(self, value, fixed_vars):
-        n_estimators = len(self.leaves)
-        prediction = 0
-        for leaves_tree in self.leaves:
-            prob = 0
-            for leaf in leaves_tree:
-                active_leaf = True
-                for v, idx, name in zip(value[leaf['used_idx']], leaf['used_idx'], leaf['used_feat']):
-                    if v not in leaf['variables'][name] and idx in fixed_vars:
-                        active_leaf=False
-                        break
-                if active_leaf:
-                    bla = leaf['tree'], leaf['name']
-                    prob = max(prob, leaf['prediction'])
-            prediction+=prob
-        return prediction/n_estimators
-"""

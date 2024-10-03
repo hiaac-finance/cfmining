@@ -10,20 +10,58 @@ import sys
 sys.path.append("../")
 from cfmining.criteria import PercentileCalculator, PercentileCriterion, NonDomCriterion
 from cfmining.utils import get_data_model, diversity_metric
+from cfmining.action_set import ActionSet
+
+
+def get_action_set(dataset, X_train, default_step_size = 0.05):
+    if dataset == "german":
+        not_mutable_features = [
+            "Age",
+            "OwnsHouse",
+            "isMale",
+            "JobClassIsSkilled",
+            "Single",
+            "ForeignWorker",
+            "RentsHouse",
+        ]
+        mutable_features = [
+            feat for feat in X_train.columns if feat not in not_mutable_features
+        ]
+        action_set = ActionSet(
+            X=X_train, default_step_size=default_step_size, mutable_features=mutable_features
+        )
+    elif dataset == "taiwan":
+        not_mutable_features = [
+            "Single",
+            "Age_in_25_to_40",
+            "Married",
+            "Age_lt_25",
+            "Age_in_40_to_59",
+            "Age_geq_60",
+            "EducationLevel",
+        ]
+        mutable_features = [
+            feat for feat in X_train.columns if feat not in not_mutable_features
+        ]
+        action_set = ActionSet(
+            X=X_train, default_step_size=default_step_size, mutable_features=mutable_features
+        )
+
+    return action_set
 
 
 def run_experiments(
-        method,
-        individuals, 
-        model, 
-        output_file = None,
-    ):
+    method,
+    individuals,
+    model,
+    output_file=None,
+):
     results = []
 
     if not output_file is None:
         folder = "/".join(output_file.split("/")[:-1])
         if not os.path.exists(folder):
-            os.makedirs(folder, exist_ok = True)
+            os.makedirs(folder, exist_ok=True)
 
     for i in tqdm(range(len(individuals))):
         individual = individuals.iloc[i]
@@ -36,20 +74,20 @@ def run_experiments(
         end = time.time()
 
         solutions = method.solutions
-        
-        results.append({
-            "individual" : individual.values.tolist(),
-            "prob" : model.predict_proba(individual.values),
-            "time" : end - start,
-            "n_solutions" : len(method.solutions),
-            "solutions" : solutions,
-        })
 
-        #print(f"Prob. max counter: {method.prob_max_counter} | Prob: {results[-1]['prob']:.2f}")
+        results.append(
+            {
+                "individual": individual.values.tolist(),
+                "prob": model.predict_proba(individual.values),
+                "time": end - start,
+                "n_solutions": len(method.solutions),
+                "solutions": solutions,
+            }
+        )
+
+        # print(f"Prob. max counter: {method.prob_max_counter} | Prob: {results[-1]['prob']:.2f}")
         if output_file is not None:
             pd.DataFrame(results).to_csv(output_file, index=False)
-
-        
 
     results = pd.DataFrame(results)
     if output_file is not None:
@@ -83,16 +121,16 @@ def summarize_results(results, dataset, outlier_percentile=0.05):
                 {
                     "costs": None,
                     "n_changes": None,
-                    "diversity" : None,
+                    "diversity": None,
                     "outlier": None,
                     "outliers_score": None,
-                    "n_solutions" : 0,
-                    "time" : results["time"].iloc[i]
+                    "n_solutions": 0,
+                    "time": results["time"].iloc[i],
                 }
             )
             continue
-        
-        #print([percentile_criteria.f(s) for s in solutions])
+
+        # print([percentile_criteria.f(s) for s in solutions])
         costs = np.mean([percentile_criteria.f(s) for s in solutions])
         n_changes = []
         for s in solutions:
@@ -118,9 +156,9 @@ def summarize_results(results, dataset, outlier_percentile=0.05):
                 "n_changes": n_changes,
                 "outlier": outliers,
                 "outliers_score": outliers_score,
-                "diversity" : diversity,
-                "n_solutions" : len(solutions),
-                "time" : results["time"].iloc[i]
+                "diversity": diversity,
+                "n_solutions": len(solutions),
+                "time": results["time"].iloc[i],
             }
         )
 
@@ -149,6 +187,10 @@ def format_df_table(df, agg_column, columns):
 
     for col in columns:
         df_mean[col] = (
-            df_mean[col].astype("str") + " (+-" + df_std[col].astype("str") + ") | " + df_90p[col].astype("str") 
+            df_mean[col].astype("str")
+            + " (+-"
+            + df_std[col].astype("str")
+            + ") | "
+            + df_90p[col].astype("str")
         )
     return df_mean
