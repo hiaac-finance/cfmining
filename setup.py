@@ -76,7 +76,13 @@ try:
         "lightgbm",
         "mip",
         "graphviz",
-        "xxhash"
+        "xxhash",
+        "prettytable",
+        "seaborn",
+        "matplotlib",
+        "scikit-learn",
+        "pyomo",
+        "cplex"
     ]
 except:
     from distutils.core import setup
