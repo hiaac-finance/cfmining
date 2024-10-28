@@ -9,87 +9,11 @@ from scipy.stats import gaussian_kde as kde
 from cfmining.criteria import *
 
 
-VAL_RATIO = 1 / 7
-TEST_RATIO = 3 / 10
-SEED = 0
-
-class FakeOutlierDetection:
-    def predict(self, X):
-        return [1]
-
-class OutlierWrap:
-    def __init__(self, X, outlier_clf, percentile):
-        self.outlier_clf = outlier_clf
-        self._percentile = percentile
-        preds = self.outlier_clf.predict(X)
-        # build interpolator that returns a threshold for each percentile
-        kde_estimator = kde(preds)
-        cdf = np.cumsum(kde_estimator(np.linspace(0, 1, 101)))
-        self.percentile_interp = interp1d(
-            cdf,
-            np.linspace(0, 1, 101),
-            copy=False,
-            bounds_error=False,
-            assume_sorted=True,
-        )
-        self._threshold = self.percentile_interp(100 * (1 - percentile))
-
-    @property
-    def percentile(self):
-        return self._percentile
-
-    @percentile.setter
-    def percentile(self, value):
-        self._percentile = value
-        self._threshold = self.percentile_interp(100 * (1 - value))
-
-    def predict(self, X):
-        """Return -1 for outlier and 1 for inliers."""
-        pred = self.outlier_clf.predict(X)
-        pred = np.where(pred < self._threshold, 1, -1)
-        return pred
-
-    def score(self, X):
-        pred = self.outlier_clf.predict(X)
-        return pred
-
-
-def get_data_model(dataset, model_name="LGBMClassifier"):
-    """Helper function to load the dataset and model."""
-    if dataset in ["german", "taiwan", "german_cat", "taiwan_cat"]:
-        df = pd.read_csv(f"../data/{dataset}.csv")
-    elif dataset == "german_small":
-        df = pd.read_csv(f"../data/german.csv")
-    if dataset == "german" or dataset == "german_cat":
-        X = df.drop("GoodCustomer", axis=1)
-        Y = df["GoodCustomer"]
-    if dataset == "german_small":
-        X = df.drop("GoodCustomer", axis=1)
-        X = X[["LoanAmount", "LoanDuration", "OwnsHouse", "is_male"]]
-        Y = df["GoodCustomer"]
-    elif dataset == "taiwan" or dataset == "taiwan_cat":
-        X = df.drop("NoDefaultNextMonth", axis=1)
-        Y = df["NoDefaultNextMonth"]
-
-    X_train, X_test, Y_train, _ = train_test_split(
-        X, Y, test_size=TEST_RATIO, random_state=SEED, shuffle=True
-    )
-
-    outlier_detection = joblib.load(f"../models/{dataset}/IsolationForest.pkl")
-    model = joblib.load(f"../models/{dataset}/{model_name}.pkl")
-    denied_individ = model.predict(X_test) == 0
-    individuals = X_test.iloc[denied_individ].reset_index(drop=True)
-
-    if dataset == "taiwan":
-        X_train = X_train.astype(int)
-        individuals = individuals.astype(int)
-
-    return X_train, Y_train, model, outlier_detection, individuals
-
-
 def diversity_metric(solutions):
     """Measure the diversity metric of solutions."""
-    l1_dist_matrix = np.abs(solutions[:, None] - solutions[None, :]).sum(axis=2).astype(np.float64)
+    l1_dist_matrix = (
+        np.abs(solutions[:, None] - solutions[None, :]).sum(axis=2).astype(np.float64)
+    )
     e = np.eye(len(solutions), dtype=np.float64) * 1e-4
     l1_dist_matrix += e
     K = 1 / (1 + l1_dist_matrix)

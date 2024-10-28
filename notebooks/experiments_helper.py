@@ -6,47 +6,55 @@ from tqdm import tqdm
 import time
 import joblib
 import sys
+from sklearn.model_selection import train_test_split
+import pathos.multiprocessing as mp
 
 sys.path.append("../")
 from cfmining.criteria import PercentileCalculator, PercentileCriterion, NonDomCriterion
-from cfmining.utils import get_data_model, diversity_metric
+from cfmining.utils import diversity_metric
 from cfmining.action_set import ActionSet
+from cfmining.datasets import *
 
 
-def get_action_set(dataset, X_train, default_step_size = 0.05):
-    if dataset == "german":
-        not_mutable_features = [
-            "Age",
-            "OwnsHouse",
-            "isMale",
-            "JobClassIsSkilled",
-            "Single",
-            "ForeignWorker",
-            "RentsHouse",
-        ]
-        mutable_features = [
-            feat for feat in X_train.columns if feat not in not_mutable_features
-        ]
-        action_set = ActionSet(
-            X=X_train, default_step_size=default_step_size, mutable_features=mutable_features
-        )
-    elif dataset == "taiwan":
-        not_mutable_features = [
-            "Single",
-            "Age_in_25_to_40",
-            "Married",
-            "Age_lt_25",
-            "Age_in_40_to_59",
-            "Age_geq_60",
-            "EducationLevel",
-        ]
-        mutable_features = [
-            feat for feat in X_train.columns if feat not in not_mutable_features
-        ]
-        action_set = ActionSet(
-            X=X_train, default_step_size=default_step_size, mutable_features=mutable_features
-        )
+VAL_RATIO = 1 / 7
+TEST_RATIO = 3 / 10
+SEED = 0
 
+
+def get_data_model(dataset_name, model_name="LGBMClassifier"):
+    """Helper function to load the dataset and model."""
+    if dataset_name == "german":
+        dataset = GermanCredit(use_categorical=False)
+    elif dataset_name == "german_cat":
+        dataset = GermanCredit(use_categorical=True)
+    elif dataset_name == "taiwan":
+        dataset = Taiwan(use_categorical=False)
+    elif dataset_name == "taiwan_cat":
+        dataset = Taiwan(use_categorical=True)
+    elif dataset_name == "adult":
+        dataset = Adult(use_categorical=False)
+    elif dataset_name == "adult_cat":
+        dataset = Adult(use_categorical=True)
+
+    X, Y = dataset.load_data()
+    X_train, X_test, _, _ = train_test_split(
+        X, Y, test_size=TEST_RATIO, random_state=SEED, shuffle=True
+    )
+
+    outlier_detection = joblib.load(f"../models/{dataset}/IsolationForest.pkl")
+    model = joblib.load(f"../models/{dataset}/{model_name}.pkl")
+    denied_individ = model.predict(X_test) == 0
+    individuals = X_test.iloc[denied_individ].reset_index(drop=True)
+
+    return dataset, X_train, model, outlier_detection, individuals
+
+def get_action_set(dataset, X_train, default_step_size = 0.1):
+    action_set = ActionSet(
+        X = X_train,
+        default_step_size = default_step_size,
+        mutable_features = dataset.mutable_features,
+        default_step_type = "relative"
+    )
     return action_set
 
 
@@ -55,6 +63,7 @@ def run_experiments(
     individuals,
     model,
     output_file=None,
+    n_jobs = 1,
 ):
     results = []
 
@@ -63,32 +72,32 @@ def run_experiments(
         if not os.path.exists(folder):
             os.makedirs(folder, exist_ok=True)
 
-    for i in tqdm(range(len(individuals))):
-        individual = individuals.iloc[i]
-        try:
-            model.clear_cache()
-        except:
-            pass
-        start = time.time()
-        method.fit(individual.values)
-        end = time.time()
+    if n_jobs == 1:
+        for i in tqdm(range(len(individuals))):
+            individual = individuals.iloc[i]
+            try:
+                model.clear_cache()
+            except:
+                pass
+            start = time.time()
+            method.fit(individual.values)
+            end = time.time()
 
-        solutions = method.solutions
+            solutions = method.solutions
 
-        results.append(
-            {
-                "individual": individual.values.tolist(),
-                "prob": model.predict_proba(individual.values),
-                "time": end - start,
-                "n_solutions": len(method.solutions),
-                "solutions": solutions,
-            }
-        )
+            results.append(
+                {
+                    "individual": individual.values.tolist(),
+                    "prob": model.predict_proba(individual.values),
+                    "time": end - start,
+                    "n_solutions": len(method.solutions),
+                    "solutions": solutions,
+                }
+            )
 
-        # print(f"Prob. max counter: {method.prob_max_counter} | Prob: {results[-1]['prob']:.2f}")
-        if output_file is not None:
-            pd.DataFrame(results).to_csv(output_file, index=False)
-
+    else:
+        ...
+    
     results = pd.DataFrame(results)
     if output_file is not None:
         results.to_csv(output_file, index=False)
