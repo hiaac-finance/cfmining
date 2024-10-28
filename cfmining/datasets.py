@@ -70,9 +70,10 @@ class Adult(Dataset):
             "occupation",
             "relationship",
             "race",
+            "is_male"
         ]
         self.target = "income"
-        self.not_mutable_features = ["race", "marital_status", "gender", "age"]
+        self.not_mutable_features = ["race", "marital_status", "is_male", "age"]
         self.path = "../data/adult.csv"
 
 

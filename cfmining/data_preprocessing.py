@@ -132,7 +132,8 @@ def preprocess_taiwan():
 
 def preprocess_adult():
     df = pd.read_csv("../data/adult_raw.csv")
-    df = df.drop(columns=["fnlwgt", "educational-num", "native-country"])
+    df["is_male"] = df["gender"] == "Male"
+    df = df.drop(columns=["fnlwgt", "educational-num", "native-country", "gender"])
     df.columns = [col.replace("-", "_") for col in df.columns]
     df["income"] = df["income"].map({">50K": 1, "<=50K": 0})
     df.to_csv("../data/adult.csv", index=False)
