@@ -104,10 +104,11 @@ def run_experiments(
     return results
 
 
-def summarize_results(results, dataset, outlier_percentile=0.05):
-    X_train, _, _, _, _ = get_data_model(dataset)
+def summarize_results(results, dataset_name):
+    dataset, X_train, _, _, _ = get_data_model(dataset_name)
     outlier_detection = joblib.load(f"../models/{dataset}/IsolationForest_test.pkl")
-    outlier_detection.percentile = outlier_percentile
+    #outlier_detection = joblib.load(f"../models/{dataset}/AE_OutlierDetection_test.pkl")
+    outlier_detection.contamination = dataset.outlier_contamination
     perc_calc = PercentileCalculator(X=X_train.astype(np.float64))
     # verify if "individual" and "solutions" are strings
     if type(results["individual"].iloc[0]) == str:
@@ -117,7 +118,7 @@ def summarize_results(results, dataset, outlier_percentile=0.05):
     costs = []
     n_changes = []
     outliers = []
-    outliers_score = []
+    #outliers_score = []
     for i in range(len(results)):
         individual = results["individual"].iloc[i]
         solutions = results["solutions"].iloc[i]
@@ -132,7 +133,7 @@ def summarize_results(results, dataset, outlier_percentile=0.05):
                     "n_changes": None,
                     "diversity": None,
                     "outlier": None,
-                    "outliers_score": None,
+                    #"outliers_score": None,
                     "n_solutions": 0,
                     "time": results["time"].iloc[i],
                 }
@@ -151,9 +152,9 @@ def summarize_results(results, dataset, outlier_percentile=0.05):
         outliers = np.mean(
             [outlier_detection.predict(np.array(s)[None, :]) == -1 for s in solutions]
         )
-        outliers_score = np.mean(
-            [outlier_detection.score(np.array(s)[None, :]) for s in solutions]
-        )
+        #outliers_score = np.mean(
+        #    [outlier_detection.score(np.array(s)[None, :]) for s in solutions]
+        #)
         if len(solutions) == 1:
             diversity = 0
         else:
@@ -164,7 +165,7 @@ def summarize_results(results, dataset, outlier_percentile=0.05):
                 "costs": costs,
                 "n_changes": n_changes,
                 "outlier": outliers,
-                "outliers_score": outliers_score,
+                #"outliers_score": outliers_score,
                 "diversity": diversity,
                 "n_solutions": len(solutions),
                 "time": results["time"].iloc[i],
