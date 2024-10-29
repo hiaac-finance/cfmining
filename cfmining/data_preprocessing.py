@@ -125,6 +125,7 @@ def preprocess_taiwan():
     for feature in cat_features:
         processed_df[feature] = df[feature].astype("category")
 
+    processed_df = processed_df.drop(columns = monetary_features)
     #transform to float
     processed_df = processed_df.astype(float)
     processed_df.to_csv("../data/taiwan.csv", index=False)

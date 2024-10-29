@@ -23,6 +23,7 @@ class Dataset:
             for feat in self.mutable_features
             if feat not in self.not_mutable_features
         ]
+        self.mutable_features.remove(self.target)
         X = self.dataframe.drop(columns=[self.target])
         y = self.dataframe[self.target]
         return X, y
