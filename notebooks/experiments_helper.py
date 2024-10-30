@@ -53,7 +53,7 @@ def get_action_set(dataset, X_train, default_step_size = 0.1):
         X = X_train,
         default_step_size = default_step_size,
         mutable_features = dataset.mutable_features,
-        default_step_type = "relative"
+        #default_step_type = "relative"
     )
     return action_set
 

@@ -83,7 +83,7 @@ class GeneralClassifier:
         self.feature_names = X.columns.tolist()
 
         # calculate importances
-        X100 = X.sample(1000 if len(X) > 1000 else min(100, X.shape[0]))
+        X100 = X.sample(100 if len(X) > 1000 else min(100, X.shape[0]))
 
         def predict_proba_aux(x):
             if type(x) != pd.DataFrame:
