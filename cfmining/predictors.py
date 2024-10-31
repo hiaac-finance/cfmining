@@ -11,7 +11,7 @@ import shap
 from functools import lru_cache
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import roc_auc_score
-
+from cfmining.utils import TreePipeExplainer, DeepPipeExplainer
 
 def mean_plus_dev_error(y_ref, y_pred, dev=2):
     err = abs(y_ref - y_pred)
@@ -241,8 +241,20 @@ class GeneralClassifier_Shap:
                 model_output="probability",
                 feature_perturbation="interventional",
             )
+        elif shap_explainer == "tree_pipe":
+            self.explainer = TreePipeExplainer(
+                self.clf,
+                X100,
+                model_output="probability",
+                feature_perturbation="interventional",
+            )
         elif shap_explainer == "deep":
             self.explainer = shap.DeepExplainer(
+                self.clf,
+                X100,
+            )
+        elif shap_explainer == "deep_pipe":
+            self.explainer = DeepPipeExplainer(
                 self.clf,
                 X100,
             )

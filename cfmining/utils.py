@@ -30,6 +30,36 @@ def sparsity_metric(individual, solutions):
     return np.sum(individual != solutions, axis=1)
 
 
+class TreePipeExplainer:
+    """Wrap class that handles pipeline with shap.TreeExplainer"""
+
+    def __init__(
+        self,
+        pipeline,
+        background_data,
+        model_output="raw",
+        feature_perturbation="interventional",
+    ):
+        self.preprocess = pipeline[:-1]
+        self.model = pipeline[-1]
+        self.background_data = self.preprocess.transform(background_data)
+
+        self.explainer = shap.TreeExplainer(
+            self.model,
+            self.background_data,
+            model_output=model_output,
+            feature_perturbation=feature_perturbation,
+        )
+
+    def __call__(self, X):
+        X = self.preprocess.transform(X)
+        return self.explainer(X)
+    
+    def explain_row(self, X):
+        X = self.preprocess.transform(X)
+        return self.explainer(X)
+
+
 class DeepPipeExplainer:
     """Wrap class that handles pipeline with shap.DeepExplaienr"""
 

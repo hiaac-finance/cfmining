@@ -37,7 +37,7 @@ def get_data_model(dataset_name, model_name="LGBMClassifier"):
         dataset = Adult(use_categorical=True)
 
     X, Y = dataset.load_data()
-    X_train, X_test, _, _ = train_test_split(
+    X_train, X_test, Y_train, _ = train_test_split(
         X, Y, test_size=TEST_RATIO, random_state=SEED, shuffle=True
     )
 
@@ -46,7 +46,7 @@ def get_data_model(dataset_name, model_name="LGBMClassifier"):
     denied_individ = model.predict(X_test) == 0
     individuals = X_test.iloc[denied_individ].reset_index(drop=True)
 
-    return dataset, X_train, model, outlier_detection, individuals
+    return dataset, X_train, Y_train, model, outlier_detection, individuals
 
 def get_action_set(dataset, X_train, default_step_size = 0.1):
     action_set = ActionSet(
@@ -105,7 +105,7 @@ def run_experiments(
 
 
 def summarize_results(results, dataset_name):
-    dataset, X_train, _, _, _ = get_data_model(dataset_name)
+    dataset, X_train, Y_train, _, _, _ = get_data_model(dataset_name)
     outlier_detection = joblib.load(f"../models/{dataset}/IsolationForest_test.pkl")
     #outlier_detection = joblib.load(f"../models/{dataset}/AE_OutlierDetection_test.pkl")
     outlier_detection.contamination = dataset.outlier_contamination

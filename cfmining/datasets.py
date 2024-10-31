@@ -13,19 +13,25 @@ class Dataset:
 
     def load_data(self):
         self.dataframe = pd.read_csv(self.path)
+
+        X = self.dataframe.drop(columns=[self.target])
+        y = self.dataframe[self.target]
+
         if not self.use_categorical:
-            self.dataframe = self.dataframe.drop(columns=self.categoric_features)
+            X = X.drop(columns=self.categoric_features)
             self.categoric_features = []
 
-        self.mutable_features = self.dataframe.columns
+        self.mutable_features = X.columns
         self.mutable_features = [
             feat
             for feat in self.mutable_features
             if feat not in self.not_mutable_features
         ]
-        self.mutable_features.remove(self.target)
-        X = self.dataframe.drop(columns=[self.target])
-        y = self.dataframe[self.target]
+        
+        self.continuous_features = [
+            feat for feat in X.columns if feat not in self.categoric_features
+        ]
+
         return X, y
 
 
