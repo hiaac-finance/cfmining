@@ -82,14 +82,18 @@ class MAPOCAM:
             feat.update_grid()
 
         self.model = model
-        if criteria == "percentile":
-            perc_calc = PercentileCalculator(action_set=action_set)
-            self.compare = lambda ind: PercentileCriterion(ind, perc_calc)
-        elif criteria == "percentile_change":
-            perc_calc = PercentileCalculator(action_set=action_set)
-            self.compare = lambda ind: PercentileChangesCriterion(ind, perc_calc)
-        elif criteria == "non_dom":
-            self.compare = lambda ind: NonDomCriterion(ind)
+        if type(criteria) == str:
+            if criteria == "percentile":
+                perc_calc = PercentileCalculator(action_set=action_set)
+                self.compare = lambda ind: PercentileCriterion(ind, perc_calc)
+            elif criteria == "percentile_change":
+                perc_calc = PercentileCalculator(action_set=action_set)
+                self.compare = lambda ind: PercentileChangesCriterion(ind, perc_calc)
+            elif criteria == "non_dom":
+                self.compare = lambda ind: NonDomCriterion(ind)
+        else:
+            self.compare = criteria
+        
 
         self.max_changes = max_changes
 
@@ -208,7 +212,10 @@ class Nice:
     """
 
     def __init__(self, data, Y, model, cat_features):
-        predict_fn = lambda x: model.predict_proba(x)
+        def predict_fn(x):
+            if type(x) == np.ndarray:
+                x = pd.DataFrame(data=x, columns=data.columns)
+            return model.predict_proba(x)
 
         features = data.columns.tolist()
         num_features = [feat for feat in features if feat not in cat_features]

@@ -9,7 +9,6 @@ import numpy as np
 import time
 from sortedcontainers import SortedDict
 
-from .criteria import NonDomCriterion
 from .criteria import (
     PercentileCalculator,
     PercentileCriterion,
@@ -130,7 +129,7 @@ class MAPOCAM:
                     self.keep_solutions[idx] = 0
                 if old_better:
                     new_optimal = False
-                    # print('sda')
+                    # #print('sda')
                     break
                 # new_optimal = new_optimal and not old_better
             self.solutions = [
@@ -170,11 +169,11 @@ class MAPOCAM:
             if new_changes >= self.max_changes:
                 continue
 
-            if hasattr(self.clf, "predict_proba_max") and self.clf.use_proba_max:
+            if hasattr(self.clf, "predict_max") and self.clf.use_predict_max:
                 open_vars = [
                     x for x in self.sequence[new_size:] if x in self.mutable_features
                 ]
-                max_prob = self.clf.predict_proba_max(new_solution, open_vars)
+                max_prob = self.clf.predict_max(new_solution, open_vars)
 
                 if max_prob < self.clf.threshold:
                     continue
@@ -202,7 +201,7 @@ class MAPOCAM:
                 {(self.clf.predict_proba(self.pivot), 0): [self.pivot.copy(), 0, 0]}
             )
             while len(self.calls) > 0:
-                # print([key[0] for key in self.calls])
+                # #print([key[0] for key in self.calls])
                 _, call = self.calls.popitem()
                 self.find_candidates(*call)
 
@@ -480,7 +479,7 @@ class Greedy:
                     if new_improv < best_improv:
                         best_improv = new_improv
                         best_solution = new_solution
-            # print(best_improv)
+            # #print(best_improv)
             solution = best_solution
             score = self.clf.predict_proba(solution)
             if best_improv == float("inf"):
@@ -587,18 +586,18 @@ class MAPOFCEM:
         action_set,
         classifier,
         compare="percentile",
-        estimate_proba_max=False,
+        estimate_predict_max=False,
         estimate_outlier=True,
         max_changes=3,
         categorical_features=None,
-        outlier_percentile=0.05,
+        outlier_contamination=0.05,
         time_limit=180,
     ):
         self.action_set = action_set
         self.clf = classifier
-        self.outlier_percentile = outlier_percentile
-        if hasattr(self.clf.outlier_clf, "percentile"):
-            self.clf.outlier_clf.percentile = outlier_percentile
+        self.outlier_contamination = outlier_contamination
+        if hasattr(self.clf.outlier_clf, "contamination"):
+            self.clf.outlier_clf.contamination = outlier_contamination
         if categorical_features is None:
             categorical_features = []
         self.categorical_features = categorical_features
@@ -627,9 +626,11 @@ class MAPOFCEM:
 
         self.sequence = np.argsort(classifier.feat_importance)[::-1]
         self.max_changes = max_changes
+        if self.max_changes == np.inf:
+            self.max_changes = self.d
 
         # maybe remove later
-        self.estimate_proba_max = estimate_proba_max
+        self.estimate_predict_max = estimate_predict_max
         self.estimate_outlier = estimate_outlier
         self.time_limit = time_limit
 
@@ -704,13 +705,13 @@ class MAPOFCEM:
 
             # Calculate max probability of solution
             max_prob = 1
-            if hasattr(self.clf, "predict_proba_max"):
-                if self.estimate_proba_max:
+            if hasattr(self.clf, "predict_max"):
+                if self.estimate_predict_max:
                     max_prob = self.clf.estimate_predict_max(
                         new_solution, open_vars, self.max_changes - new_changes
                     )
                 else:
-                    max_prob = self.clf.predict_proba_max(
+                    max_prob = self.clf.predict_max(
                         new_solution, open_vars, self.max_changes - new_changes
                     )
 
