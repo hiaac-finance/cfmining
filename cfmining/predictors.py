@@ -79,7 +79,7 @@ class GeneralClassifier:
     def __init__(self, classifier, outlier_clf=None, X=None, threshold=0.5):
         self.clf = classifier
         self.threshold = threshold
-        self.use_proba_max = True
+        self.use_predict_max = True
         self.feature_names = X.columns.tolist()
 
         # calculate importances
@@ -174,7 +174,7 @@ class MonotoneClassifier(GeneralClassifier):
     def monotone(self):
         return True
 
-    def predict_proba_max(self, value, open_vars, n_changes=None):
+    def predict_max(self, value, open_vars, n_changes=None):
         """Calculates probability of achieving desired classification."""
         assert type(value) == np.ndarray
         value_copy = value.copy()
