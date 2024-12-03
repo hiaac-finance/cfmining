@@ -35,6 +35,8 @@ class MAPOCAM:
         Maximal number of changes of a counterfactual antecedent.
     compare : criteria type class.
         Class that evaluate the cost of a counterfactual antecedent.
+    time_limit : float, optional (default=np.inf)
+        Maximum time to run the algorithm.
 
     Attributes
     ----------
@@ -71,6 +73,7 @@ class MAPOCAM:
         clean_suboptimal=True,
         warm_solutions=None,
         recursive=False,
+        time_limit=np.inf,
     ):
         self.names = list(action_set.df["name"])
         self.d = len(self.names)
@@ -78,6 +81,7 @@ class MAPOCAM:
         self.clf = classifier
         self.action_set = action_set
         self.recursive = recursive
+        self.time_limit = time_limit
 
         assert type(pivot) is np.ndarray, "pivot should be a numpy array"
         self.pivot = pivot
@@ -193,6 +197,7 @@ class MAPOCAM:
         """
         Find counterfactual antecedent given the data.
         """
+        start = time.time()
         if self.recursive:
             self.find_candidates(self.pivot.copy(), 0, 0)
         else:
@@ -200,7 +205,7 @@ class MAPOCAM:
             self.calls = SortedDict(
                 {(self.clf.predict_proba(self.pivot), 0): [self.pivot.copy(), 0, 0]}
             )
-            while len(self.calls) > 0:
+            while len(self.calls) > 0 and time.time() - start < self.time_limit:
                 # #print([key[0] for key in self.calls])
                 _, call = self.calls.popitem()
                 self.find_candidates(*call)

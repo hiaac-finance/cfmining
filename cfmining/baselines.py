@@ -11,6 +11,7 @@ from cfmining.criteria import (
     PercentileChangesCriterion,
     NonDomCriterion,
 )
+from cfmining.predictors import TreeClassifier
 
 
 class Bruteforce:
@@ -73,9 +74,11 @@ class MAPOCAM:
         Criteria for comparing multi-objective solutions
     max_changes : int
         Maximum number of changes to consider counterfactuals
+    time_limit : float
+        Maximum time to run the algorithm
     """
 
-    def __init__(self, action_set, model, criteria, max_changes):
+    def __init__(self, action_set, model, criteria, max_changes, time_limit = np.inf):
         self.action_set = copy.deepcopy(action_set)
         for feat in self.action_set:
             feat.flip_direction = 1
@@ -96,14 +99,21 @@ class MAPOCAM:
         
 
         self.max_changes = max_changes
+        self.time_limit = time_limit
 
     def fit(self, individual):
+        if isinstance(self.model, TreeClassifier): # small optimization for tree models
+            self.model.fit(
+                individual,
+                self.action_set,
+            )
         m = alg.MAPOCAM(
             self.action_set,
             individual,
             self.model,
             max_changes=self.max_changes,
             compare=self.compare(individual),
+            time_limit = self.time_limit,
         )
         m.fit()
         self.solutions = m.solutions

@@ -1,4 +1,6 @@
 import pandas as pd
+import numpy as np
+from sklearn.preprocessing import OrdinalEncoder
 
 
 class Dataset:
@@ -20,6 +22,14 @@ class Dataset:
         if not self.use_categorical:
             X = X.drop(columns=self.categoric_features)
             self.categoric_features = []
+        else:
+            # perform Ordinal Encoding
+            encoder = OrdinalEncoder(
+                dtype=np.int64, handle_unknown="use_encoded_value", unknown_value=-1
+            )
+            X[self.categoric_features] = encoder.fit_transform(
+                X[self.categoric_features]
+            )
 
         self.mutable_features = X.columns
         self.mutable_features = [
@@ -27,7 +37,7 @@ class Dataset:
             for feat in self.mutable_features
             if feat not in self.not_mutable_features
         ]
-        
+
         self.continuous_features = [
             feat for feat in X.columns if feat not in self.categoric_features
         ]
@@ -77,7 +87,7 @@ class Adult(Dataset):
             "occupation",
             "relationship",
             "race",
-            "is_male"
+            "is_male",
         ]
         self.target = "income"
         self.not_mutable_features = ["race", "marital_status", "is_male", "age"]

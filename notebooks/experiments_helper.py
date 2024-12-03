@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 import pathos.multiprocessing as mp
 
 sys.path.append("../")
-from cfmining.criteria import PercentileCalculator, PercentileCriterion, NonDomCriterion
+from cfmining.criteria import PercentileCalculator, PercentileCriterion, NonDomCriterion, RangeCalculator, MaxDistCriterion, LpDistCriterion, NumberChangesCriterion
 from cfmining.utils import diversity_metric
 from cfmining.action_set import ActionSet
 from cfmining.datasets import *
@@ -41,8 +41,8 @@ def get_data_model(dataset_name, model_name="LGBMClassifier"):
         X, Y, test_size=TEST_RATIO, random_state=SEED, shuffle=True
     )
 
-    outlier_detection = joblib.load(f"../models/{dataset}/IsolationForest.pkl")
-    model = joblib.load(f"../models/{dataset}/{model_name}.pkl")
+    outlier_detection = joblib.load(f"../models/{dataset_name}/IsolationForest.pkl")
+    model = joblib.load(f"../models/{dataset_name}/{model_name}.pkl")
     denied_individ = model.predict(X_test) == 0
     individuals = X_test.iloc[denied_individ].reset_index(drop=True)
 
@@ -107,41 +107,44 @@ def run_experiments(
 def summarize_results(results, dataset_name):
     dataset, X_train, Y_train, _, _, _ = get_data_model(dataset_name)
     outlier_detection = joblib.load(f"../models/{dataset}/IsolationForest_test.pkl")
+    action_set = get_action_set(dataset, X_train, default_step_size=0.05)
     #outlier_detection = joblib.load(f"../models/{dataset}/AE_OutlierDetection_test.pkl")
     outlier_detection.contamination = dataset.outlier_contamination
     perc_calc = PercentileCalculator(X=X_train.astype(np.float64))
+    range_calc = RangeCalculator(action_set = action_set)
     # verify if "individual" and "solutions" are strings
     if type(results["individual"].iloc[0]) == str:
         results["individual"] = results["individual"].apply(literal_eval)
         results["solutions"] = results["solutions"].apply(literal_eval)
     results_df = []
-    costs = []
-    n_changes = []
-    outliers = []
-    #outliers_score = []
     for i in range(len(results)):
         individual = results["individual"].iloc[i]
         solutions = results["solutions"].iloc[i]
         if len(individual) == 1:
             individual = individual[0]
         percentile_criteria = PercentileCriterion(individual, perc_calc)
+        max_dist_criteria = MaxDistCriterion(individual, range_calc)
+        lp_dist_criteria = LpDistCriterion(individual, range_calc)
+        #n_changes_criteria = NumberChangesCriterion(individual)
 
         if len(solutions) == 0:
             results_df.append(
                 {
-                    "costs": None,
+                    "percentile_costs": None,
                     "n_changes": None,
+                    "lp_costs" : None,
+                    "max_dist_costs" : None,
                     "diversity": None,
                     "outlier": None,
-                    #"outliers_score": None,
                     "n_solutions": 0,
                     "time": results["time"].iloc[i],
                 }
             )
             continue
 
-        # print([percentile_criteria.f(s) for s in solutions])
-        costs = np.mean([percentile_criteria.f(s) for s in solutions])
+        percentile_costs = np.mean([percentile_criteria.f(s) for s in solutions])
+        lp_costs = np.mean([lp_dist_criteria.f(s) for s in solutions])
+        max_dist_costs = np.mean([max_dist_criteria.f(s) for s in solutions])
         n_changes = []
         for s in solutions:
             n_changes_ = sum(
@@ -152,9 +155,6 @@ def summarize_results(results, dataset_name):
         outliers = np.mean(
             [outlier_detection.predict(np.array(s)[None, :]) == -1 for s in solutions]
         )
-        #outliers_score = np.mean(
-        #    [outlier_detection.score(np.array(s)[None, :]) for s in solutions]
-        #)
         if len(solutions) == 1:
             diversity = 0
         else:
@@ -162,10 +162,11 @@ def summarize_results(results, dataset_name):
 
         results_df.append(
             {
-                "costs": costs,
+                "percentile_costs": percentile_costs,
+                "lp_costs": lp_costs,
+                "max_dist_costs": max_dist_costs,
                 "n_changes": n_changes,
                 "outlier": outliers,
-                #"outliers_score": outliers_score,
                 "diversity": diversity,
                 "n_solutions": len(solutions),
                 "time": results["time"].iloc[i],
@@ -204,3 +205,16 @@ def format_df_table(df, agg_column, columns):
             + df_90p[col].astype("str")
         )
     return df_mean
+
+
+def number_dominated_solutions(A, B):
+    """Return the number of solutions in A that are dominated by at least one solution in B."""
+    n_dominated = 0
+    for a in A:
+        for b in B:
+            if all(a <= b):
+                n_dominated += 1
+                break
+    return n_dominated
+
+
