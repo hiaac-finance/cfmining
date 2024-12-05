@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 import pathos.multiprocessing as mp
 
 sys.path.append("../")
-from cfmining.criteria import PercentileCalculator, PercentileCriterion, NonDomCriterion, RangeCalculator, MaxDistCriterion, LpDistCriterion, NumberChangesCriterion
+from cfmining.criteria import *
 from cfmining.utils import diversity_metric
 from cfmining.action_set import ActionSet
 from cfmining.datasets import *
@@ -125,6 +125,7 @@ def summarize_results(results, dataset_name):
         percentile_criteria = PercentileCriterion(individual, perc_calc)
         max_dist_criteria = MaxDistCriterion(individual, range_calc)
         lp_dist_criteria = LpDistCriterion(individual, range_calc)
+        abs_diff_criteria = AbsDiffCriterion(individual, range_calc)
         #n_changes_criteria = NumberChangesCriterion(individual)
 
         if len(solutions) == 0:
@@ -134,6 +135,7 @@ def summarize_results(results, dataset_name):
                     "n_changes": None,
                     "lp_costs" : None,
                     "max_dist_costs" : None,
+                    "abs_diff_costs" : None,
                     "diversity": None,
                     "outlier": None,
                     "n_solutions": 0,
@@ -145,6 +147,7 @@ def summarize_results(results, dataset_name):
         percentile_costs = np.mean([percentile_criteria.f(s) for s in solutions])
         lp_costs = np.mean([lp_dist_criteria.f(s) for s in solutions])
         max_dist_costs = np.mean([max_dist_criteria.f(s) for s in solutions])
+        abs_diff_costs = np.mean([abs_diff_criteria.f(s) for s in solutions])
         n_changes = []
         for s in solutions:
             n_changes_ = sum(
@@ -165,6 +168,7 @@ def summarize_results(results, dataset_name):
                 "percentile_costs": percentile_costs,
                 "lp_costs": lp_costs,
                 "max_dist_costs": max_dist_costs,
+                "abs_diff_costs": abs_diff_costs,
                 "n_changes": n_changes,
                 "outlier": outliers,
                 "diversity": diversity,

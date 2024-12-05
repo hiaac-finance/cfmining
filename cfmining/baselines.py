@@ -5,12 +5,7 @@ import dice_ml
 from nice import NICE
 import json
 import cfmining.algorithms as alg
-from cfmining.criteria import (
-    PercentileCalculator,
-    PercentileCriterion,
-    PercentileChangesCriterion,
-    NonDomCriterion,
-)
+from cfmining.criteria import *
 from cfmining.predictors import TreeClassifier
 
 
@@ -94,6 +89,12 @@ class MAPOCAM:
                 self.compare = lambda ind: PercentileChangesCriterion(ind, perc_calc)
             elif criteria == "non_dom":
                 self.compare = lambda ind: NonDomCriterion(ind)
+            elif criteria == "euclidean":
+                self.range_calc = RangeCalculator(action_set=action_set)
+                self.compare = lambda ind: LpDistCriterion(ind, self.range_calc)
+            elif criteria == "abs_diff":
+                self.range_calc = RangeCalculator(action_set=action_set)
+                self.compare = lambda ind: AbsDiffCriterion(ind, self.range_calc)
         else:
             self.compare = criteria
         

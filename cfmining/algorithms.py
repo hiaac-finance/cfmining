@@ -9,12 +9,7 @@ import numpy as np
 import time
 from sortedcontainers import SortedDict
 
-from .criteria import (
-    PercentileCalculator,
-    PercentileCriterion,
-    PercentileChangesCriterion,
-    NonDomCriterion,
-)
+from .criteria import *
 
 
 class MAPOCAM:
@@ -624,6 +619,12 @@ class MAPOFCEM:
                 )
             elif compare == "non_dom":
                 self.compare_call = lambda cfe: NonDomCriterion(cfe)
+            elif compare == "euclidean":
+                self.range_calc = RangeCalculator(action_set=action_set)
+                self.compare_call = lambda cfe: LpDistCriterion(cfe, self.range_calc)
+            elif compare == "abs_diff":
+                self.range_calc = RangeCalculator(action_set=action_set)
+                self.compare_call = lambda cfe: AbsDiffCriterion(cfe, self.range_calc)
             else:
                 raise ValueError("compare must be a valid string")
         else:

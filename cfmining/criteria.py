@@ -133,7 +133,7 @@ class PercentileCriterion:
     @property
     def pivot(self):
         return self._pivot
-    
+
     @pivot.setter
     def pivot(self, value):
         self._pivot = np.ascontiguousarray(value)
@@ -222,10 +222,51 @@ class RangeCalculator:
     ----------
     action_set : ActionSet,
         ActionSet with search grid.
+    categoric_features : list,
+        List of indexes of categoric features.
     """
 
-    def __init__(self, action_set):
-        self.range = np.array([max(feat.grid) - min(feat.grid) for feat in action_set])
+    def __init__(self, action_set, categoric_features=None):
+        if categoric_features is None:
+            categoric_features = []
+        self.num_features = [
+            i for i in range(len(action_set)) if i not in categoric_features
+        ]
+        self.range = np.array([np.std(feat.values) for feat in action_set])
+        self.range = np.where(self.range == 0, 1, self.range)
+        self.range = self.range[self.num_features]
+    
+
+class AbsDiffCriterion(Criterion):
+    """Class that calculates the normalized absolute difference between the pivot and the solution.
+
+    Parameters
+    ----------
+    pivot : numpy array
+        Sample in which we want to observe the shift and calculate the cost.
+    range_calc : RangeCalculator
+        Range calculator for that set of samples.
+    categoric_features : list
+        List of indexes of categoric features.
+    """
+
+    def __init__(self, pivot, range_calc, categoric_features=None):
+        self.pivot = np.ascontiguousarray(pivot)
+        if categoric_features is None:
+            categoric_features = []
+        self.range = range_calc.range
+        self.num_features = [
+            i for i in range(len(pivot)) if i not in categoric_features
+        ]
+
+    def f(self, solution):
+        if type(solution) == list:
+            solution = np.array(solution)
+        dif = (
+            np.abs(solution[self.num_features] - self.pivot[self.num_features])
+            / self.range
+        )
+        return np.nanmean(dif)
 
 
 class MaxDistCriterion(Criterion):
@@ -239,18 +280,22 @@ class MaxDistCriterion(Criterion):
     range_calc : RangeCalculator,
         Range calculator for that set of samples.
     categoric_features : list,
-        List of boolean values that indicates if a feature is categoric.
+        List of indexes of categoric features.
     """
 
     def __init__(self, pivot, range_calc, categoric_features=None):
         self.pivot = np.ascontiguousarray(pivot)
         self.range = range_calc.range
         if categoric_features is None:
-            categoric_features = [False] * len(pivot)
-        self.categoric_features = categoric_features
+            categoric_features = []
+        self.num_features = [
+            i for i in range(len(pivot)) if i not in categoric_features
+        ]
 
     def f(self, solution):
-        dif = np.where(self.categoric_features, 0, (solution - self.pivot) / self.range)
+        if type(solution) == list:
+            solution = np.array(solution)
+        dif = (solution[self.num_features] - self.pivot[self.num_features]) / self.range
         return np.linalg.norm(dif, ord=np.inf)
 
 
@@ -263,17 +308,19 @@ class CategoricDistCriterion(Criterion):
     pivot : numpy array,
         Sample in which we want to observe the shift and calculate the cost.
     categoric_features : list,
-        List of boolean values that indicates if a feature is categoric.
+        List of indexes of categoric features.
     """
 
     def __init__(self, pivot, categoric_features=None):
         self.pivot = np.ascontiguousarray(pivot)
         if categoric_features is None:
-            categoric_features = [False] * len(pivot)
-        self.categoric_features = categoric_features
+            categoric_features = []
+        self.num_features = [i for i in range(len(pivot)) if i in categoric_features]
 
     def f(self, solution):
-        dif = np.where(self.categoric_features, solution != self.pivot, 0)
+        if type(solution) == list:
+            solution = np.array(solution)
+        dif = solution[self.num_features] != self.pivot[self.num_features]
         return np.sum(dif)
 
 
@@ -291,6 +338,8 @@ class NumberChangesCriterion(Criterion):
         self.pivot = np.ascontiguousarray(pivot)
 
     def f(self, solution):
+        if type(solution) == list:
+            solution = np.array(solution)
         return np.sum(solution != self.pivot)
 
 
@@ -300,13 +349,16 @@ class LpDistCriterion(Criterion):
         self.p = p
         self.range = range_calc.range
         if categoric_features is None:
-            categoric_features = [False] * len(pivot)
-        self.categoric_features = categoric_features
+            categoric_features = []
+        self.num_features = [
+            i for i in range(len(pivot)) if i not in categoric_features
+        ]
 
     def f(self, solution):
-        dif = np.where(self.categoric_features, 0, (solution - self.pivot) / self.range)
-        return np.sum(np.abs(dif))
-        #return np.linalg.norm(dif, ord=self.p)
+        if type(solution) == list:
+            solution = np.array(solution)
+        dif = (solution[self.num_features] - self.pivot[self.num_features]) / self.range
+        return np.linalg.norm(dif, ord=self.p)
 
     def greater_than(self, new_sol, old_sol):
         """Order two solutions."""
@@ -342,5 +394,3 @@ class MultiCriterion(Criterion):
         old_objs = self.f(old_sol)
 
         return all(new_objs >= old_objs)
-
-
