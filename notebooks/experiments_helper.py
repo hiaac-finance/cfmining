@@ -16,8 +16,8 @@ from cfmining.action_set import ActionSet
 from cfmining.datasets import *
 
 
-VAL_RATIO = 1 / 7
-TEST_RATIO = 3 / 10
+VAL_RATIO = 1 / 10
+TEST_RATIO = 5 / 10
 SEED = 0
 
 
