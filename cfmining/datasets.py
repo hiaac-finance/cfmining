@@ -6,7 +6,7 @@ from sklearn.preprocessing import OrdinalEncoder
 class Dataset:
     def __init__(self, name):
         self.name = name
-        self.outlier_contamination = 0.01
+        self.outlier_contamination = 0.05
         self.categoric_features = []
         self.not_mutable_features = []
 
@@ -68,7 +68,7 @@ class Taiwan(Dataset):
     def __init__(self, use_categorical=False):
         super().__init__("taiwan")
         self.use_categorical = use_categorical
-        self.outlier_contamination = 0.01
+        self.outlier_contamination = 0.05
         self.categoric_features = ["EDUCATION", "MARRIAGE"]
         self.target = "NoDefaultNextMonth"
         self.not_mutable_features = ["Age", "MARRIAGE"]
@@ -79,18 +79,14 @@ class Adult(Dataset):
     def __init__(self, use_categorical=False):
         super().__init__("adult")
         self.use_categorical = use_categorical
-        self.outlier_contamination = 0.01
+        self.outlier_contamination = 0.05
         self.categoric_features = [
-            "workclass",
-            "education",
-            "marital_status",
             "occupation",
             "relationship",
             "race",
-            "is_male",
         ]
         self.target = "income"
-        self.not_mutable_features = ["race", "marital_status", "is_male", "age"]
+        self.not_mutable_features = ["race", "is_male", "age"]
         self.path = "../data/adult.csv"
 
 
