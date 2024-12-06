@@ -229,11 +229,25 @@ class GeneralClassifier_Shap:
         self.method_predict_max = method_predict_max
         self.threshold = threshold
         self.use_predict_max = True
-
-        X100 = X.sample(1000 if len(X) > 1000 else min(100, X.shape[0]))
+        self.exp_kwargs = {}
+        X100 = X.sample(100 if len(X) > 1000 else min(100, X.shape[0]))
         if shap_explainer == "permutation":
-            predict_proba = lambda x: self.clf.predict_proba(x)[:, 1]
-            self.explainer = shap.Explainer(predict_proba, X100)
+            def predict_proba_aux(x):
+                if type(x) != pd.DataFrame:
+                    if x.ndim == 1:
+                        x = x.reshape(1, -1)
+                    x = pd.DataFrame(data=x, columns=X.columns)
+                return self.clf.predict_proba(x)[:, 1]
+            self.explainer = shap.Explainer(predict_proba_aux, X100, algorithm = "permutation")
+            self.exp_kwargs = {"silent": True}
+        elif shap_explainer == "kernel":
+            def predict_proba(x):
+                if type(x) != pd.DataFrame:
+                    x = pd.DataFrame(data=x, columns=self.feature_names)
+                return self.clf.predict_proba(x)[:, 1]
+            background = shap.sample(X, 10)
+            self.explainer = shap.KernelExplainer(predict_proba, background)
+            self.exp_kwargs = {"silent": True}
         elif shap_explainer == "tree":
             self.explainer = shap.TreeExplainer(
                 self.clf,
@@ -253,6 +267,7 @@ class GeneralClassifier_Shap:
                 self.clf,
                 X100,
             )
+            self.exp_kwargs = {"silent": True}
         elif shap_explainer == "deep_pipe":
             self.explainer = DeepPipeExplainer(
                 self.clf,
@@ -371,7 +386,7 @@ class GeneralClassifier_Shap:
     def shap_explanation(self, value):
         """Calculates the shap explanation for a specific sample."""
         value = pd.DataFrame(data=[value], columns=self.feature_names)
-        return self.explainer(value)[0].values
+        return self.explainer(value, **self.exp_kwargs)[0].values
 
     def clear_cache(self):
         """Clears the cache of the shap explanation."""
@@ -555,7 +570,7 @@ class TreeClassifier(GeneralClassifier, TreeExtractor):
         use_predict_max=False,
         clf_type="sklearn",
     ):
-        super().__init__(classifier, X, y, metric, threshold)
+        super().__init__(classifier, X = X, threshold = threshold)
         self.clf = classifier
         self.clf_type = clf_type
         self.threshold = threshold
