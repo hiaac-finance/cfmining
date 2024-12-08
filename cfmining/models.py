@@ -7,7 +7,48 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.preprocessing import OneHotEncoder
 from tqdm import tqdm
+from sklearn.svm import SVC as SklearnSVC
 
+class SVC(BaseEstimator, ClassifierMixin):
+    def __init__(
+        self,
+        C=1.0,
+        class_weight=None,
+        random_state=None,
+    ):
+        self._random_state = random_state
+        self._seed_everything(random_state)
+        self.C = C
+        self.class_weight = class_weight
+
+    @property
+    def random_state(self):
+        return self._random_state
+
+    @random_state.setter
+    def random_state(self, value):
+        self._random_state = value
+        self._seed_everything(value)
+
+    def _seed_everything(self, value):
+        if value is not None:
+            np.random.seed(self.random_state)
+
+    def fit(self, X, y):
+        self.model = SklearnSVC(
+            C=self.C,
+            kernel="rbf",
+            class_weight=self.class_weight,
+            random_state=self.random_state,
+        )
+        self.model.fit(X, y)
+
+    def predict_proba(self, X):
+        Y = self.model.decision_function(X) + 0.5
+        return np.stack([1 - Y, Y], axis=1)
+
+    def predict(self, X):
+        return self.model.predict(X)
 
 class MLPClassifier(BaseEstimator, ClassifierMixin):
     """MLPClassifier in the Sklearn API using PyTorch.
