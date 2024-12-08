@@ -604,8 +604,9 @@ class TreeClassifier(GeneralClassifier, TreeExtractor):
         elif self.clf_type == "lightgbm":
             return 1 / (1 + np.exp(-prediction))
 
-    def predict_max_(self, value, fixed_vars):
+    def predict_max_(self, value, open_vars):
         """Calculates the maximal probability of a optimization branch."""
+        fixed_vars = [i for i in range(len(value)) if i not in open_vars]
         n_estimators = len(self.forest)
         prediction = 0
         for leaves_tree in self.forest:
@@ -622,8 +623,9 @@ class TreeClassifier(GeneralClassifier, TreeExtractor):
         elif self.clf_type == "lightgbm":
             return 1 / (1 + np.exp(-prediction))
 
-    def predict_max(self, value, fixed_vars):
+    def predict_max(self, value, open_vars):
         """Calculates the maximal probability of a optimization branch."""
+        fixed_vars = [i for i in range(len(value)) if i not in open_vars]
         fixed = set(fixed_vars)
         n_estimators = len(self.forest)
         prediction = 0

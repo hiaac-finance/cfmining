@@ -172,10 +172,7 @@ class MAPOCAM:
                 open_vars = [
                     x for x in self.sequence[new_size:] if x in self.mutable_features
                 ]
-                fixed_vars = [
-                    x for x in self.sequence if x not in open_vars
-                ]
-                max_prob = self.clf.predict_max(new_solution, fixed_vars)
+                max_prob = self.clf.predict_max(new_solution, open_vars)
                 if max_prob < self.clf.threshold:
                     continue
 

@@ -101,6 +101,9 @@ def run_experiments(
     results = pd.DataFrame(results)
     if output_file is not None:
         results.to_csv(output_file, index=False)
+    
+    with open("log.txt", "+a") as f:
+        f.write(f"Finished {output_file}\n")
     return results
 
 
@@ -172,6 +175,74 @@ def summarize_results(results, dataset_name):
                 "n_changes": n_changes,
                 "outlier": outliers,
                 "diversity": diversity,
+                "n_solutions": len(solutions),
+                "time": results["time"].iloc[i],
+            }
+        )
+
+    return pd.DataFrame(results_df)
+
+
+def summarize_results_multi(results, dataset_name):
+    dataset, X_train, Y_train, _, _, _ = get_data_model(dataset_name)
+    outlier_detection = joblib.load(f"../models/{dataset}/IsolationForest_test.pkl")
+    action_set = get_action_set(dataset, X_train, default_step_size=0.05)
+    #outlier_detection = joblib.load(f"../models/{dataset}/AE_OutlierDetection_test.pkl")
+    outlier_detection.contamination = dataset.outlier_contamination
+    perc_calc = PercentileCalculator(X=X_train.astype(np.float64))
+    range_calc = RangeCalculator(action_set = action_set)
+    # verify if "individual" and "solutions" are strings
+    if type(results["individual"].iloc[0]) == str:
+        results["individual"] = results["individual"].apply(literal_eval)
+        results["solutions"] = results["solutions"].apply(literal_eval)
+    results_df = []
+    for i in range(len(results)):
+        individual = results["individual"].iloc[i]
+        solutions = results["solutions"].iloc[i]
+        if len(individual) == 1:
+            individual = individual[0]
+        percentile_criteria = PercentileCriterion(individual, perc_calc)
+        max_dist_criteria = MaxDistCriterion(individual, range_calc)
+        lp_dist_criteria = LpDistCriterion(individual, range_calc)
+        abs_diff_criteria = AbsDiffCriterion(individual, range_calc)
+        #n_changes_criteria = NumberChangesCriterion(individual)
+
+        if len(solutions) == 0:
+            results_df.append(
+                {
+                    "percentile_costs": [],
+                    "n_changes": [],
+                    "lp_costs" : [],
+                    "max_dist_costs" : [],
+                    "abs_diff_costs" : [],
+                    "outlier": [],
+                    "n_solutions": 0,
+                    "time": results["time"].iloc[i],
+                }
+            )
+            continue
+
+        percentile_costs = [percentile_criteria.f(s) for s in solutions]
+        lp_costs = [lp_dist_criteria.f(s) for s in solutions]
+        max_dist_costs = [max_dist_criteria.f(s) for s in solutions]
+        abs_diff_costs = [abs_diff_criteria.f(s) for s in solutions]
+        n_changes = []
+        for s in solutions:
+            n_changes_ = sum(
+                [1 for i in range(len(individual)) if individual[i] != s[i]]
+            )
+            n_changes.append(n_changes_)
+        
+        outliers = [outlier_detection.predict(np.array(s)[None, :]) == -1 for s in solutions]
+
+        results_df.append(
+            {
+                "percentile_costs": percentile_costs,
+                "lp_costs": lp_costs,
+                "max_dist_costs": max_dist_costs,
+                "abs_diff_costs": abs_diff_costs,
+                "n_changes": n_changes,
+                "outlier": outliers,
                 "n_solutions": len(solutions),
                 "time": results["time"].iloc[i],
             }
