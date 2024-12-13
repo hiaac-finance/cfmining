@@ -286,10 +286,12 @@ def number_dominated_solutions(A, B):
     """Return the number of solutions in A that are dominated by at least one solution in B."""
     n_dominated = 0
     for a in A:
+        a = np.array(a)
         for b in B:
-            if all(a <= b):
+            b = np.array(b)
+            if all(a >= b) and (a - b).sum() > 0:
                 n_dominated += 1
                 break
-    return n_dominated
+    return n_dominated / max(len(A), 1)
 
 

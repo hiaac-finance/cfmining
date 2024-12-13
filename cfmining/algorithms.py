@@ -774,5 +774,18 @@ class MAPOFCEM:
             _, call = self.calls.popitem()
             self.find_candidates(*call)
 
+        # clean solutions
+        solutions = []
+        for i, solution in enumerate(self.solutions):
+            optimal = True
+            for j, comp_sol in enumerate(self.solutions):
+                if self.compare.greater_than(solution, comp_sol):
+                    if i < j or not self.compare.greater_than(comp_sol, solution):
+                        optimal = False
+                        break
+            if optimal:
+                solutions += [solution]
+        self.solutions = solutions
         self.solutions = [s.tolist() for s in self.solutions]
+
         return self
