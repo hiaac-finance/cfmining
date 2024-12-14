@@ -554,7 +554,7 @@ class BruteForce(MAPOCAM):
             self.recursive_fit(new_solution, size + 1, new_changes)
 
 
-class MAPOFCEM:
+class P2CE:
     """Class that finds a set of Pareto-optimal counterfactual antecedents
     using branch-and-bound based tree search.
 
